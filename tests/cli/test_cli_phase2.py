@@ -224,20 +224,6 @@ class TestDoctorFn:
 # ── CLI command tests (via CliRunner) ──
 
 
-class TestInitCommand:
-    def test_init(self, tmp_path):
-        result = runner.invoke(app, ["init", "--root", str(tmp_path)])
-        assert result.exit_code == 0
-        assert "initialized" in result.output.lower()
-        assert (tmp_path / "experiments").is_dir()
-
-    def test_init_idempotent(self, tmp_path):
-        runner.invoke(app, ["init", "--root", str(tmp_path)])
-        result = runner.invoke(app, ["init", "--root", str(tmp_path)])
-        assert result.exit_code == 0
-        assert "exists" in result.output.lower()
-
-
 class TestNewCommand:
     def test_new_experiment(self, tmp_root):
         result = runner.invoke(app, ["new", "my-test", "--root", str(tmp_root)])

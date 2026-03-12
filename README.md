@@ -35,13 +35,10 @@ LEAP2 is a clean-room reimplementation of LEAP, fixing tight coupling problems (
 # Install
 pip install -e .
 
-# Initialize project structure (if starting fresh)
-leap init
-
 # Set admin password
 leap set-password
 
-# Start server
+# Start server (auto-creates project structure on first run)
 leap run
 ```
 
@@ -506,8 +503,7 @@ Credentials use PBKDF2-SHA256 (240,000 iterations). First run: if no credentials
 
 | Command | Purpose |
 |---|---|
-| `leap run` | Start the server |
-| `leap init` | Bootstrap project structure |
+| `leap run` | Start the server (auto-bootstraps project structure on first run) |
 | `leap new <name>` | Create experiment scaffold |
 | `leap install <url>` | Clone experiment from Git; auto-installs `requirements.txt` if present |
 | `leap list` | List experiments |

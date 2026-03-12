@@ -548,6 +548,7 @@ def run(
     from leap.main import create_app
 
     resolved = _resolve_root(root)
+    init_project_fn(resolved)
     the_app = create_app(root=resolved)
     typer.echo(f"Starting LEAP2 on {host}:{port} (root: {resolved})")
     uvicorn.run(the_app, host=host, port=port)
@@ -606,18 +607,6 @@ def list_students(
     typer.echo("-" * 70)
     for s in students:
         typer.echo(f"{s['student_id']:<20} {s['name']:<30} {s.get('email') or ''}")
-
-
-@app.command("init")
-def init_project(
-    root: Optional[Path] = typer.Option(None, help="Project root override"),
-):
-    """Bootstrap LEAP2 project structure."""
-    results = init_project_fn(root)
-    for path, status in results.items():
-        icon = "+" if status == "created" else "="
-        typer.echo(f"  {icon} {path} ({status})")
-    typer.echo("Project initialized.")
 
 
 @app.command("new")
