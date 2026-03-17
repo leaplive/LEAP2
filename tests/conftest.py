@@ -66,6 +66,14 @@ def tmp_root(tmp_path: Path) -> Path:
         "    return 'reset'\n"
     )
 
+    (funcs_dir / "admin_funcs.py").write_text(
+        "from leap import adminonly\n\n"
+        "@adminonly\n"
+        "def wipe_data():\n"
+        '    """Admin-only function."""\n'
+        "    return 'wiped'\n"
+    )
+
     # UI structure for Phase 2 static serving tests
     ui_shared = tmp_path / "ui" / "shared"
     ui_shared.mkdir(parents=True)

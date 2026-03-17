@@ -16,7 +16,7 @@ LEAP2 is a clean-room reimplementation of LEAP, fixing tight coupling problems (
 - **Automatic Logging** — Every RPC call is logged with args, result, timestamp, student ID, and trial
 - **Student Registration** — Per-experiment registration with admin management; bulk CSV import via CLI, API, and UI
 - **Per-Function Rate Limiting** — Default 120 calls/minute per student; override with `@ratelimit("10/minute")` or disable with `@ratelimit(False)`
-- **Flexible Decorators** — `@nolog` for high-frequency calls, `@noregcheck` for open functions, `@ratelimit` for rate control
+- **Flexible Decorators** — `@nolog` for high-frequency calls, `@noregcheck` for open functions, `@ratelimit` for rate control, `@adminonly` for restricted functions
 - **Decoupled Visualizations** — JS + Python Log Clients abstract log queries; visualizations depend on the client interface, not raw API calls
 - **Rich Client** — Python RPCClient with `is_registered()`, `help()`, `fetch_logs()`, structured exception hierarchy (`RPCError`, `RPCNotRegisteredError`, etc.); matching JavaScript RPCClient for browser use
 - **Admin Client** — Browser-side student management, log deletion, and function reloading via `adminclient.js`
@@ -54,7 +54,7 @@ LEAP2/
 │   ├── cli.py               # Typer CLI (shared functions used by API too)
 │   ├── core/                # Pure logic, no HTTP
 │   │   ├── storage.py       # SQLAlchemy models, DuckDB CRUD
-│   │   ├── rpc.py           # RPC execution, @nolog, @noregcheck, @ratelimit
+│   │   ├── rpc.py           # RPC execution, @nolog, @noregcheck, @ratelimit, @adminonly
 │   │   ├── auth.py          # PBKDF2 hashing, credentials I/O
 │   │   └── experiment.py    # Discovery, README parsing, function loading
 │   ├── api/                 # FastAPI routers (thin wrappers over core)
@@ -78,7 +78,7 @@ LEAP2/
 │       ├── ui/              # optional; entry_point can be "readme" or a file in ui/
 │       └── db/              # DuckDB file (gitignored)
 ├── config/                  # admin_credentials.json (gitignored)
-├── tests/                   # pytest suite (460 tests)
+├── tests/                   # pytest suite (488 tests)
 └── pyproject.toml
 ```
 
@@ -131,7 +131,7 @@ def gradient_step(x: float, lr: float = 0.1) -> float:
     return x - lr * 2 * (x - 3)
 ```
 
-Public functions (names not starting with `_`) are auto-discovered and exposed at `POST /exp/my-experiment/call`. Functions prefixed with `_` are private — they stay hidden from the API but can be used as helpers by your exposed functions:
+Public functions (names not starting with `_`) are auto-discovered and exposed at `POST /exp/my-experiment/call`. If a module defines `__all__`, only those names are exported. Functions prefixed with `_` are private — they stay hidden from the API but can be used as helpers by your exposed functions:
 
 ```python
 import numpy as np
@@ -168,7 +168,7 @@ If the cloned experiment contains a `requirements.txt`, `leap install` will auto
 ## Decorators
 
 ```python
-from leap import nolog, noregcheck, ratelimit
+from leap import adminonly, nolog, noregcheck, ratelimit
 
 @nolog
 def step(dx):
@@ -179,6 +179,12 @@ def step(dx):
 def echo(x):
     """Anyone can call this, no registration required. Still logged."""
     return x
+
+@adminonly
+def reset_data():
+    """Wipe experiment data — admin only."""
+    clear_all()
+    return "done"
 
 @ratelimit("10/minute")
 def expensive_simulation(x):
@@ -194,6 +200,8 @@ def ping():
 `@nolog` — Skip logging for high-frequency calls (real-time UI updates, animation, polling). The function still executes and returns results; it just doesn't create a log entry.
 
 `@noregcheck` — Skip registration check for that function regardless of experiment setting. Useful when only some functions should be open (e.g. `echo()` for quick tests, `train()` requires registration).
+
+`@adminonly` — Restrict the function to admin sessions only. Non-admin callers receive a 403 error. Useful for data management, reset functions, or viewing all students' records. The check happens at the API layer before the function executes.
 
 `@ratelimit` — Control per-student rate limiting. All functions have a default rate limit of 120/minute per student. `@ratelimit("N/period")` overrides (period: `second`, `minute`, `hour`, `day`). `@ratelimit(False)` disables rate limiting entirely. Keyed by `(experiment, function, student_id)` — different students are independently limited.
 
@@ -385,7 +393,7 @@ Requires an active admin session (cookie set by the login page). `fromCurrentPag
 
 ## Shared UI Pages
 
-- **Functions** — `/static/functions.html?exp=<name>` — Function cards with syntax-highlighted signatures, docstrings (serif font), and decorator badges
+- **Functions** — `/static/functions.html?exp=<name>` — Function cards with syntax-highlighted signatures, docstrings (serif font), and decorator badges (`@nolog`, `@noregcheck`, `@adminonly`, rate limit)
 - **Students** — `/static/students.html?exp=<name>` — Add, list, delete students with optional email field; search by ID/name, pagination, bulk CSV import with preview (admin required; shows auth gate when not logged in)
 - **Logs** — `/static/logs.html?exp=<name>` — Real-time log viewer with auto-refresh, sparkline visualization, student/function/trial filters; admin users see per-row delete buttons
 - **README** — `/static/readme.html?exp=<name>` — Rendered experiment README with academic fonts, syntax highlighting (highlight.js), line numbers, floating table of contents, and frontmatter banner
@@ -500,6 +508,7 @@ Error:    { "detail": "..." }
     "doc": "Return x squared.",
     "nolog": false,
     "noregcheck": false,
+    "adminonly": false,
     "ratelimit": "default"
   },
   "step": {
@@ -507,6 +516,7 @@ Error:    { "detail": "..." }
     "doc": "Move the agent by (dx, dy). Called at high frequency by UI — NOT logged.",
     "nolog": true,
     "noregcheck": false,
+    "adminonly": false,
     "ratelimit": "default"
   },
   "echo": {
@@ -514,6 +524,7 @@ Error:    { "detail": "..." }
     "doc": "Return input unchanged. Open to all — no registration required. Still logged.",
     "nolog": false,
     "noregcheck": true,
+    "adminonly": false,
     "ratelimit": "default"
   }
 }
@@ -634,7 +645,7 @@ The same format is accepted by the API (`POST /exp/<name>/admin/import-students`
 # Install with dev dependencies
 pip install -e ".[dev]"
 
-# Run tests (460 tests)
+# Run tests (488 tests)
 pytest tests/
 
 # Run with auto-reload
@@ -646,11 +657,12 @@ uvicorn leap.main:app --reload --port 9000
 ```
 tests/
 ├── conftest.py               # Shared fixtures (tmp_root, tmp_credentials)
-├── core/                     # storage, auth, experiment, rpc (194 tests)
+├── test_quizlab.py           # Quizlab: parsing, grading, get_all_scores (14 tests)
+├── core/                     # storage, auth, experiment, rpc (198 tests)
 ├── api/
-│   ├── test_api.py           # Full API integration (80 tests)
+│   ├── test_api.py           # Full API integration (89 tests)
 │   ├── test_ui_serving.py    # Static mounts, landing, login (22 tests)
-│   └── test_phase4.py        # Shared pages, CORS, function flags (15 tests)
+│   └── test_phase4.py        # Shared pages, CORS, function flags (16 tests)
 ├── client/
 │   ├── test_rpcclient.py     # RPCClient: call, dispatch, help, is_registered, fetch_logs, exceptions (42 tests)
 │   └── test_logclient.py     # Python LogClient (23 tests)
@@ -675,6 +687,8 @@ version: "1.0.0"
 entry_point: readme
 leap_version: ">=1.0"
 require_registration: true
+pages:
+  - {name: "Scores", file: "scores.html", admin: true}
 ---
 
 # Instructions
@@ -692,6 +706,7 @@ require_registration: true
 | `entry_point` | `readme` | `readme` = experiment README page; or a UI file in `ui/` (e.g. `dashboard.html`) |
 | `leap_version` | _(none)_ | Minimum LEAP2 version required (enforced; `>=1.0`, `==1.0.0`, or bare `1.0`) |
 | `require_registration` | `true` | Require student registration for RPC |
+| `pages` | `[]` | Extra navbar links: `[{name, file, admin}]`. Admin-only pages hidden for non-admins. |
 
 > [!WARNING]
 > **Experiment names must be lowercase.** Folder names must match `[a-z0-9][a-z0-9_-]*` — only lowercase letters, digits, hyphens, and underscores are allowed (e.g. `monte-carlo`, `gradient-descent-2d`). Folders with uppercase characters (like `My-Experiment`) are **silently skipped** at discovery. Use `display_name` in frontmatter for human-readable names.
@@ -708,7 +723,7 @@ Not yet implemented — tracked for future work.
 | `LOG_CLIENT.md` | Viz authors | JS + Python API, baseUrl, browser + standalone |
 | `ADMIN_CLIENT.md` | Admin UI authors | Methods, auth, baseUrl conventions |
 | `RPC_CLIENT.md` | Students | RPCClient usage, trial, discovery |
-| `DECORATORS.md` | Experiment authors | `@nolog`, `@noregcheck`, when to use |
+| `DECORATORS.md` | Experiment authors | `@nolog`, `@noregcheck`, `@adminonly`, `@ratelimit`, when to use |
 | `DATA_CONTRACT.md` | API consumers | Log schema, query params, stable contract |
 | `RUNBOOK.md` | Ops | Start/stop, env vars, credentials, troubleshooting |
 
@@ -717,7 +732,7 @@ Currently the README covers all of this in condensed form.
 **Features:**
 
 - **Algorithm visualizations** — Port BFS grid, gradient descent, Monte Carlo, power method from LEAP using the Log Client (experiment-specific, in `experiments/<name>/ui/`)
-- **Quiz system** — Deferred from LEAP
+- ~~**Quiz system**~~ — Implemented: `quizlab` experiment with markdown quizzes, server-side grading, `@nolog` private storage, admin scores page with CSV export
 - **Monaco/uPlot IDE dashboard** — Rich in-browser coding + plotting
 - **DB migrations** — Schema versioning for future LEAP2 changes
 - ~~**Experiment dependencies**~~ — Implemented: `leap install` auto-runs `pip install -r requirements.txt` if present in the cloned experiment

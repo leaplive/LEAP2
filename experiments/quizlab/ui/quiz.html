@@ -68,6 +68,9 @@
     .question-card.incorrect { border-color: #ef4444; }
 
     .question-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
       font-family: var(--font-display);
       font-size: 0.8rem;
       font-weight: 600;
@@ -75,6 +78,17 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
       margin-bottom: 0.75rem;
+    }
+    .points-badge {
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.15rem 0.45rem;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--color-primary);
+      border: 1px solid var(--color-primary);
+      letter-spacing: 0.03em;
+      text-transform: none;
     }
 
     .question-body {
@@ -194,8 +208,20 @@
       font-family: var(--font-display);
       font-size: 1.5rem;
       font-weight: 700;
-      margin-bottom: 1.5rem;
+      margin-bottom: 0.5rem;
     }
+
+    .score-bar {
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      color: var(--color-text-muted);
+      margin-bottom: 1.25rem;
+      padding: 0.5rem 0.75rem;
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+    }
+    .score-bar .scored { font-weight: 600; color: var(--color-text); }
 
     .loading {
       color: var(--color-text-muted);
@@ -244,7 +270,8 @@
     let lastStudentId = null;
     let currentQuizFile = null;
     let currentFrontmatter = {};
-    let parsedQuestions = [];  // [{id, body, type, choices, explanation}, ...]
+    let parsedQuestions = [];  // [{id, points, body, type, choices, explanation}, ...]
+    let scores = {};  // question_id → points earned
 
     // ── DOM refs ──
     const elStudentId = document.getElementById("student-id");
@@ -289,7 +316,7 @@
     }
 
     // ── Parse quiz markdown (already stripped) ──
-    const QUESTION_RE = /^##\s+Question\s+\d+\s*:\s*(\S+)/;
+    const QUESTION_RE = /^##\s+Question\s+\d+\s*:\s*(\S+)(?:\s+\[(\d+)\])?/;
     const RADIO_RE = /^- \([ x]\)\s+(.*)$/;
     const CHECK_RE = /^- \[[ x]\]\s+(.*)$/;
     const NUMERIC_RE = /^=\s+(.*)$/;
@@ -304,7 +331,7 @@
         const hMatch = line.match(QUESTION_RE);
         if (hMatch) {
           if (current) questions.push(current);
-          current = { id: hMatch[1], bodyLines: [], choiceLines: [], explanationLines: [], type: null };
+          current = { id: hMatch[1], points: hMatch[2] ? parseInt(hMatch[2], 10) : 1, bodyLines: [], choiceLines: [], explanationLines: [], type: null };
           continue;
         }
         if (!current) continue;
@@ -362,6 +389,7 @@
 
       return questions.map(q => ({
         id: q.id,
+        points: q.points,
         body: q.bodyLines.join("\n").trim(),
         type: q.type || "radio",
         choices: q.choiceLines,
@@ -380,7 +408,13 @@
         // Header
         const header = document.createElement("div");
         header.className = "question-header";
-        header.textContent = "Question " + (idx + 1);
+        const headerLabel = document.createElement("span");
+        headerLabel.textContent = "Question " + (idx + 1);
+        const pointsBadge = document.createElement("span");
+        pointsBadge.className = "points-badge";
+        pointsBadge.textContent = q.points + (q.points === 1 ? " pt" : " pts");
+        header.appendChild(headerLabel);
+        header.appendChild(pointsBadge);
         card.appendChild(header);
 
         // Body
@@ -449,6 +483,32 @@
       });
     }
 
+    // ── Score bar ──
+    function renderScoreBar() {
+      let bar = elContainer.querySelector(".score-bar");
+      if (!bar) {
+        bar = document.createElement("div");
+        bar.className = "score-bar";
+        // Insert after the title (first child) or at the start
+        const title = elContainer.querySelector(".quiz-title");
+        if (title && title.nextSibling) {
+          elContainer.insertBefore(bar, title.nextSibling);
+        } else if (title) {
+          elContainer.appendChild(bar);
+        } else {
+          elContainer.prepend(bar);
+        }
+      }
+      const total = parsedQuestions.reduce((s, q) => s + q.points, 0);
+      const hideScored = currentFrontmatter.show_result === false;
+      if (hideScored) {
+        bar.textContent = "Total: " + total + " pts";
+      } else {
+        const earned = Object.values(scores).reduce((s, v) => s + v, 0);
+        bar.innerHTML = "Score: <span class=\"scored\">" + earned + " / " + total + "</span> pts";
+      }
+    }
+
     // ── Submit answer ──
     async function submitAnswer(q) {
       clearError();
@@ -474,8 +534,15 @@
           answer = parseFloat(input.value);
         }
 
-        const result = await client.call("grade", currentQuizFile, q.id, answer);
-        showResult(q, card, result);
+        const sid = elStudentId.type === "password" ? elStudentId.value : elStudentId.value.trim();
+        const result = await client.call("grade", sid, currentQuizFile, q.id, answer);
+        if (result.submitted) {
+          showSubmitted(q, card);
+        } else {
+          scores[q.id] = result.correct ? (result.points || q.points) : 0;
+          showResult(q, card, result);
+        }
+        renderScoreBar();
       } catch (e) {
         showError(e.message || String(e));
         const card = document.getElementById("q-" + q.id);
@@ -483,6 +550,36 @@
         btn.disabled = false;
         btn.textContent = "Submit";
       }
+    }
+
+    function showSubmitted(q, card) {
+      // Hide results mode: just confirm submission without showing correctness
+      card.querySelectorAll(".result-banner, .explanation").forEach(el => el.remove());
+
+      const allowResubmit = currentFrontmatter.allow_resubmit === true;
+
+      if (!allowResubmit) {
+        card.querySelectorAll("input").forEach(i => i.disabled = true);
+        card.querySelectorAll(".choices li").forEach(li => li.classList.add("disabled"));
+      }
+
+      const btn = card.querySelector(".btn-submit");
+      if (allowResubmit) {
+        btn.disabled = false;
+        btn.textContent = "Resubmit";
+      } else {
+        btn.disabled = true;
+        btn.textContent = "Submitted";
+      }
+
+      // Neutral banner
+      const banner = document.createElement("div");
+      banner.className = "result-banner";
+      banner.style.background = "var(--color-bg)";
+      banner.style.color = "var(--color-text-muted)";
+      banner.style.border = "1px solid var(--color-border)";
+      banner.textContent = "Answer recorded.";
+      card.appendChild(banner);
     }
 
     function showResult(q, card, result) {
@@ -535,20 +632,9 @@
     async function loadPriorSubmissions() {
       try {
         const client = ensureRpc();
-        const logs = await client.fetchLogs({ funcName: "grade", n: 10000, order: "latest" });
+        const sid = elStudentId.type === "password" ? elStudentId.value : elStudentId.value.trim();
+        const submitted = await client.call("get_my_submissions", sid, currentQuizFile);
 
-        // Build map: question_id → latest result (only for current quiz)
-        const submitted = {};
-        for (const log of logs) {
-          if (!log.args || log.args.length < 3) continue;
-          if (log.args[0] !== currentQuizFile) continue;
-          const qid = log.args[1];
-          if (qid in submitted) continue;  // already have latest
-          if (log.error) continue;
-          submitted[qid] = { answer: log.args[2], result: log.result };
-        }
-
-        // Apply to rendered questions
         for (const q of parsedQuestions) {
           if (!(q.id in submitted)) continue;
           const { answer, result } = submitted[q.id];
@@ -569,9 +655,15 @@
             if (input) input.value = answer;
           }
 
-          // Show result
-          showResult(q, card, result);
+          // Show result (or just "submitted" if results are hidden)
+          if (result.submitted) {
+            showSubmitted(q, card);
+          } else {
+            scores[q.id] = result.correct ? (result.points || q.points) : 0;
+            showResult(q, card, result);
+          }
         }
+        renderScoreBar();
       } catch (e) {
         // Silently ignore — student may not have submissions yet
       }
@@ -580,6 +672,7 @@
     // ── Load quiz ──
     async function loadQuiz(quizFile) {
       clearError();
+      elStudentId.type = "password";
       elContainer.innerHTML = '<p class="loading">Loading quiz...</p>';
       try {
         const client = ensureRpc();
@@ -599,7 +692,9 @@
         }
 
         parsedQuestions = parseQuizBody(data.body);
+        scores = {};
         renderQuiz(parsedQuestions);
+        renderScoreBar();
 
         // Render KaTeX in any already-rendered content
         if (typeof renderMathInElement === "function") {

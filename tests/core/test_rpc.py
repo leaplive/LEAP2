@@ -54,10 +54,16 @@ class TestDecorators:
         def open_fn(): pass
         assert rpc._has_flag(open_fn, "_leap_noregcheck") is True
 
+    def test_adminonly_flag(self):
+        @rpc.adminonly
+        def restricted(): pass
+        assert rpc._has_flag(restricted, "_leap_adminonly") is True
+
     def test_no_flag_by_default(self):
         def normal(): pass
         assert rpc._has_flag(normal, "_leap_nolog") is False
         assert rpc._has_flag(normal, "_leap_noregcheck") is False
+        assert rpc._has_flag(normal, "_leap_adminonly") is False
 
     def test_combined_decorators(self):
         @rpc.nolog

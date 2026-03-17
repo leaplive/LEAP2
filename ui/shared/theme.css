@@ -224,6 +224,26 @@ pre code {
   color: var(--color-primary);
 }
 
+.navbar-links a.nav-lab.nav-lab-admin {
+  color: var(--color-accent);
+  border-color: rgba(196, 101, 58, 0.35);
+  background: rgba(196, 101, 58, 0.1);
+}
+.navbar-links a.nav-lab.nav-lab-admin:hover {
+  background: rgba(196, 101, 58, 0.18);
+  border-color: rgba(196, 101, 58, 0.5);
+  color: var(--color-accent);
+}
+html.dark .navbar-links a.nav-lab.nav-lab-admin {
+  color: var(--color-accent);
+  border-color: rgba(251, 146, 60, 0.35);
+  background: rgba(251, 146, 60, 0.1);
+}
+html.dark .navbar-links a.nav-lab.nav-lab-admin:hover {
+  background: rgba(251, 146, 60, 0.18);
+  border-color: rgba(251, 146, 60, 0.5);
+}
+
 .nav-divider {
   width: 1px;
   height: 1rem;
@@ -994,6 +1014,10 @@ html.dark .theme-toggle .icon-sun { display: block; }
 .badge-noregcheck {
   background: rgba(var(--color-primary-rgb), 0.08);
   color: var(--color-primary);
+}
+.badge-adminonly {
+  background: var(--color-accent-light);
+  color: var(--color-accent);
 }
 
 /* ── Add-form row (students page) ── */

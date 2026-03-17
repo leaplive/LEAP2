@@ -2,22 +2,31 @@
 
 from __future__ import annotations
 
+import json
 import math
 import re
 from pathlib import Path
 
-from leap import nolog, noregcheck
+from leap import adminonly, nolog, noregcheck
+
+__all__ = ["list_quizzes", "get_quiz", "grade", "get_my_submissions", "get_all_scores"]
 
 # ── Helpers ──
 
-_QUESTION_RE = re.compile(r"^##\s+Question\s+\d+\s*:\s*(\S+)", re.MULTILINE)
+_QUESTION_RE = re.compile(r"^##\s+Question\s+\d+\s*:\s*(\S+)(?:\s+\[(\d+)\])?", re.MULTILINE)
 _RADIO_RE = re.compile(r"^- \(([x ])\)\s+(.*)$")
 _CHECK_RE = re.compile(r"^- \[([x ])\]\s+(.*)$")
 _NUMERIC_RE = re.compile(r"^=\s+(.+)$")
 
 
 def _quiz_dir() -> Path:
-    return Path(__file__).resolve().parent.parent / "ui" / "quiz"
+    return Path(__file__).resolve().parent.parent / "quiz"
+
+
+def _data_dir() -> Path:
+    d = Path(__file__).resolve().parent.parent / "data"
+    d.mkdir(exist_ok=True)
+    return d
 
 
 def _parse_frontmatter(text: str) -> tuple[dict, str]:
@@ -55,8 +64,10 @@ def _parse_question(section: str) -> dict:
         if in_explanation:
             if stripped.startswith(">"):
                 explanation_lines.append(stripped[1:].strip())
+            elif stripped == "":
+                explanation_lines.append("")
             else:
-                explanation_lines.append(stripped)
+                in_explanation = False
             continue
 
         # Radio choice
@@ -104,16 +115,17 @@ def _parse_question(section: str) -> dict:
     }
 
 
-def _split_questions(body: str) -> list[tuple[str, str]]:
-    """Split quiz body into (question_id, section_text) pairs."""
+def _split_questions(body: str) -> list[tuple[str, int, str]]:
+    """Split quiz body into (question_id, points, section_text) tuples."""
     parts = _QUESTION_RE.split(body)
     # parts[0] is text before first question (ignored)
-    # then alternating: id, section_text, id, section_text, ...
+    # then alternating: id, points_or_None, section_text, ...
     questions = []
-    for i in range(1, len(parts), 2):
+    for i in range(1, len(parts), 3):
         qid = parts[i]
-        section = parts[i + 1] if i + 1 < len(parts) else ""
-        questions.append((qid, section))
+        points = int(parts[i + 1]) if parts[i + 1] else 1
+        section = parts[i + 2] if i + 2 < len(parts) else ""
+        questions.append((qid, points, section))
     return questions
 
 
@@ -182,23 +194,26 @@ def get_quiz(quiz_file: str) -> dict:
     }
 
 
-def grade(quiz_file: str, question_id: str, answer) -> dict:
-    """Grade a single question.
+@nolog
+def grade(student_id: str, quiz_file: str, question_id: str, answer) -> dict:
+    """Grade a single question and save the submission privately.
 
     Args:
+        student_id: Student identifier (used for private storage).
         quiz_file: Quiz filename (e.g. "derivatives.md").
         question_id: Question identifier from the header.
         answer: int (radio index), list[int] (checkbox indices), or float (numeric).
 
     Returns:
-        {correct: bool, expected: ..., explanation: str|None}
+        {correct: bool, expected: ..., explanation: str|None, points: int}
+        or {submitted: true} when show_result is false.
     """
     path = _validate_quiz_file(quiz_file)
     text = path.read_text(encoding="utf-8")
-    _, body = _parse_frontmatter(text)
+    fm, body = _parse_frontmatter(text)
 
     questions = _split_questions(body)
-    for qid, section in questions:
+    for qid, points, section in questions:
         if qid == question_id:
             parsed = _parse_question(section)
             expected = parsed["correct"]
@@ -209,7 +224,9 @@ def grade(quiz_file: str, question_id: str, answer) -> dict:
                 try:
                     student_val = float(answer)
                 except (TypeError, ValueError):
-                    return {"correct": False, "expected": expected, "explanation": explanation}
+                    full_result = {"correct": False, "expected": expected, "explanation": explanation, "points": points}
+                    _save_submission(student_id, quiz_file, question_id, answer, full_result)
+                    return full_result if fm.get("show_result") is not False else {"submitted": True}
                 tol = max(1e-6, abs(expected) * 1e-6)
                 correct = math.isclose(student_val, expected, abs_tol=tol)
             elif parsed["type"] == "checkbox":
@@ -221,10 +238,105 @@ def grade(quiz_file: str, question_id: str, answer) -> dict:
                 # Radio — compare single index
                 correct = answer == expected
 
-            return {
+            full_result = {
                 "correct": correct,
                 "expected": expected,
                 "explanation": explanation,
+                "points": points,
             }
+            _save_submission(student_id, quiz_file, question_id, answer, full_result)
+
+            if fm.get("show_result") is False:
+                return {"submitted": True}
+
+            return full_result
 
     raise ValueError(f"Question not found: {question_id}")
+
+
+def _save_submission(student_id: str, quiz_file: str, question_id: str, answer, result: dict) -> None:
+    """Append a submission record to the student's private JSONL file."""
+    path = _data_dir() / f"{student_id}.jsonl"
+    record = {"student_id": student_id, "quiz_file": quiz_file, "question_id": question_id, "answer": answer, "result": result}
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record) + "\n")
+
+
+@nolog
+def get_my_submissions(student_id: str, quiz_file: str) -> dict:
+    """Return the student's latest submission per question for a quiz.
+
+    Returns:
+        {question_id: {answer: ..., result: {...}}, ...}
+    """
+    path = _data_dir() / f"{student_id}.jsonl"
+    if not path.is_file():
+        return {}
+    submitted = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        record = json.loads(line)
+        if record["quiz_file"] == quiz_file:
+            submitted[record["question_id"]] = {
+                "answer": record["answer"],
+                "result": record["result"],
+            }
+    return submitted
+
+
+@adminonly
+@noregcheck
+@nolog
+def get_all_scores(quiz_file: str) -> dict:
+    """Return all student scores for a quiz (admin only).
+
+    Returns:
+        {quiz_title, questions: [{qid, points}], students: [{student_id, scores, total_earned, total_possible}]}
+    """
+    path = _validate_quiz_file(quiz_file)
+    text = path.read_text(encoding="utf-8")
+    fm, body = _parse_frontmatter(text)
+    questions = _split_questions(body)
+
+    quiz_title = fm.get("title", quiz_file)
+    question_meta = [{"qid": qid, "points": pts} for qid, pts, _ in questions]
+    total_possible = sum(pts for _, pts, _ in questions)
+    qid_points = {qid: pts for qid, pts, _ in questions}
+
+    data_dir = _data_dir()
+    students = []
+    for jsonl_file in sorted(data_dir.glob("*.jsonl")):
+        student_id = jsonl_file.stem
+        latest = {}
+        for line in jsonl_file.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            if record.get("quiz_file") == quiz_file:
+                latest[record["question_id"]] = record
+
+        if not latest:
+            continue
+
+        scores = {}
+        earned = 0
+        for qid, pts in qid_points.items():
+            if qid in latest:
+                correct = latest[qid]["result"].get("correct", False)
+                pe = pts if correct else 0
+                scores[qid] = {"correct": correct, "points_earned": pe, "points_possible": pts}
+                earned += pe
+
+        students.append({
+            "student_id": student_id,
+            "scores": scores,
+            "total_earned": earned,
+            "total_possible": total_possible,
+        })
+
+    return {
+        "quiz_title": quiz_title,
+        "questions": question_meta,
+        "students": students,
+    }

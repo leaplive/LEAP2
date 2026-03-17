@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Quiz Lab — Admin scores overview for all students.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1f4ca;</text></svg>">
+  <title>Scores — Quiz Lab — LEAP2</title>
+  <script>(function(){var t=localStorage.getItem("leap-theme");if(t==="dark"||(!t&&matchMedia("(prefers-color-scheme:dark)").matches))document.documentElement.classList.add("dark")})()</script>
+  <link rel="stylesheet" href="/static/theme.css">
+  <script src="/static/theme-toggle.js" defer></script>
+  <style>
+    /* ── Controls ── */
+    .controls-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: flex-end;
+      margin-bottom: 1.5rem;
+      padding: 1rem 1.25rem;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+    }
+    .controls-bar .field { display: flex; flex-direction: column; gap: 0.25rem; }
+    .controls-bar label {
+      font-size: 0.75rem;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .controls-bar select {
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      padding: 0.375rem 0.625rem;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: var(--color-bg);
+      color: var(--color-text);
+      min-width: 220px;
+    }
+
+    /* ── Stats strip ── */
+    .stats-strip {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.25rem;
+      animation: fadeSlideIn 0.3s ease-out;
+    }
+    .stat-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.625rem 1rem;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      flex: 1;
+      min-width: 140px;
+    }
+    .stat-pill .stat-value {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--color-text);
+      line-height: 1.1;
+    }
+    .stat-pill .stat-label {
+      font-size: 0.6875rem;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      line-height: 1.3;
+    }
+
+    /* ── Scores header ── */
+    .scores-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .scores-header h2 {
+      font-family: var(--font-display);
+      font-size: 1.125rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .scores-summary {
+      font-size: 0.75rem;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      display: block;
+      margin-top: 0.125rem;
+    }
+
+    /* ── Table container ── */
+    .scores-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      animation: fadeSlideIn 0.35s ease-out;
+    }
+    .scores-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+    }
+    .scores-table th,
+    .scores-table td {
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--color-border);
+      white-space: nowrap;
+      text-align: center;
+    }
+    .scores-table th {
+      font-weight: 600;
+      color: var(--color-text-muted);
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: var(--color-bg);
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    .scores-table th.col-student {
+      text-align: left;
+      position: sticky;
+      left: 0;
+      z-index: 3;
+    }
+    .scores-table td.col-student {
+      text-align: left;
+      font-family: var(--font-mono);
+      font-weight: 500;
+      font-size: 0.75rem;
+      position: sticky;
+      left: 0;
+      background: var(--color-surface);
+      z-index: 1;
+    }
+    .scores-table th.col-total,
+    .scores-table td.col-total {
+      border-left: 2px solid var(--color-border);
+    }
+    .scores-table th .pts {
+      display: block;
+      font-size: 0.6rem;
+      font-weight: 400;
+      letter-spacing: 0;
+      text-transform: none;
+      color: var(--color-text-muted);
+      opacity: 0.7;
+    }
+
+    /* Row interactions */
+    .scores-table tbody tr {
+      transition: background var(--transition);
+    }
+    .scores-table tbody tr:hover {
+      background: var(--color-bg);
+    }
+    .scores-table tbody tr:hover td.col-student {
+      background: var(--color-bg);
+    }
+    .scores-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Staggered row reveal */
+    .scores-table tbody tr {
+      animation: fadeRow 0.25s ease-out both;
+    }
+
+    /* ── Cell states ── */
+    .cell-correct {
+      color: var(--color-success);
+      font-weight: 600;
+      position: relative;
+    }
+    .cell-correct::before {
+      content: '';
+      position: absolute;
+      inset: 3px;
+      background: rgba(34, 197, 94, 0.1);
+      border-radius: 3px;
+      z-index: -1;
+    }
+    .cell-incorrect {
+      color: var(--color-error);
+      position: relative;
+    }
+    .cell-incorrect::before {
+      content: '';
+      position: absolute;
+      inset: 3px;
+      background: rgba(239, 68, 68, 0.08);
+      border-radius: 3px;
+      z-index: -1;
+    }
+    .cell-unanswered {
+      color: var(--color-text-muted);
+      opacity: 0.35;
+      font-size: 0.7rem;
+    }
+
+    html.dark .cell-correct::before { background: rgba(110, 231, 160, 0.08); }
+    html.dark .cell-incorrect::before { background: rgba(248, 113, 113, 0.08); }
+
+    /* ── Total column with bar ── */
+    .col-total {
+      font-weight: 700;
+    }
+    .total-cell {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-width: 120px;
+    }
+    .total-cell .total-num {
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      font-weight: 700;
+      white-space: nowrap;
+      min-width: 2rem;
+      text-align: right;
+    }
+    .total-bar-track {
+      flex: 1;
+      height: 4px;
+      background: var(--color-border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .total-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: var(--color-primary);
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .total-bar-fill.high { background: var(--color-success); }
+    .total-bar-fill.mid { background: var(--color-warning); }
+    .total-bar-fill.low { background: var(--color-error); }
+    .total-cell .total-pct {
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      color: var(--color-text-muted);
+      min-width: 2.25rem;
+      text-align: right;
+    }
+
+    /* ── Export button ── */
+    .btn-export {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.375rem 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      font-family: var(--font-sans);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: var(--color-surface);
+      color: var(--color-text);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .btn-export:hover {
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+      background: var(--color-primary-light);
+    }
+    .btn-export svg { flex-shrink: 0; }
+
+    /* ── Loading ── */
+    .loading {
+      text-align: center;
+      padding: 3rem 2rem;
+      color: var(--color-text-muted);
+      font-size: 0.875rem;
+    }
+    .loading-dots::after {
+      content: '';
+      animation: dots 1.2s steps(4) infinite;
+    }
+    @keyframes dots {
+      0% { content: ''; }
+      25% { content: '.'; }
+      50% { content: '..'; }
+      75% { content: '...'; }
+    }
+
+    /* ── Animations ── */
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeRow {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+  </style>
+</head>
+<body data-page="scores">
+  <a class="skip-to-content" href="#main-content">Skip to content</a>
+  <script src="/static/navbar.js"></script>
+
+  <main class="container" id="main-content">
+    <!-- Auth gate -->
+    <div id="auth-gate" class="auth-gate hidden">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      <h2>Admin Access Required</h2>
+      <p>Log in as admin to view student scores.</p>
+      <button class="btn btn-primary" onclick="document.querySelector('.footer-admin-login')?.click() || (window.location.href='/login')">Log in</button>
+    </div>
+
+    <!-- Scores UI (shown after auth) -->
+    <div id="scores-ui" class="hidden">
+      <nav class="breadcrumb">
+        <a href="/">Experiments</a>
+        <span class="breadcrumb-sep">/</span>
+        <a href="quiz.html">quizlab</a>
+        <span class="breadcrumb-sep">/</span>
+        <span>scores</span>
+      </nav>
+
+      <div class="page-header">
+        <h1>Scores</h1>
+        <p>Student scores across all quiz questions.</p>
+      </div>
+
+      <div class="controls-bar">
+        <div class="field">
+          <label for="quiz-select">Quiz</label>
+          <select id="quiz-select">
+            <option value="">Select a quiz&hellip;</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="scores-content"></div>
+    </div>
+  </main>
+
+  <script src="/static/footer.js"></script>
+  <script type="module">
+    import { RPCClient } from "/static/rpcclient.js";
+
+    var elAuthGate = document.getElementById("auth-gate");
+    var elScoresUI = document.getElementById("scores-ui");
+    var elQuizSelect = document.getElementById("quiz-select");
+    var elContent = document.getElementById("scores-content");
+
+    var client = RPCClient.fromCurrentPage({ studentId: "_admin" });
+    var currentData = null;
+
+    // ── Auth check ──
+    fetch("/api/auth-status", { credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.admin) {
+          elScoresUI.classList.remove("hidden");
+          loadQuizList();
+        } else {
+          elAuthGate.classList.remove("hidden");
+        }
+      })
+      .catch(function () {
+        elAuthGate.classList.remove("hidden");
+      });
+
+    // ── Load quiz list ──
+    async function loadQuizList() {
+      try {
+        var quizzes = await client.call("list_quizzes");
+        quizzes.forEach(function (q) {
+          var opt = document.createElement("option");
+          opt.value = q.file;
+          opt.textContent = q.title;
+          elQuizSelect.appendChild(opt);
+        });
+      } catch (e) {
+        elContent.innerHTML = '<div class="alert alert-error">Failed to load quizzes: ' + e.message + '</div>';
+      }
+    }
+
+    // ── Load scores on quiz select ──
+    elQuizSelect.addEventListener("change", async function () {
+      var quiz = elQuizSelect.value;
+      if (!quiz) { elContent.innerHTML = ""; currentData = null; return; }
+
+      elContent.innerHTML = '<div class="loading"><span class="loading-dots">Loading scores</span></div>';
+      try {
+        currentData = await client.call("get_all_scores", quiz);
+        renderScores(currentData);
+      } catch (e) {
+        elContent.innerHTML = '<div class="alert alert-error">Failed to load scores: ' + e.message + '</div>';
+        currentData = null;
+      }
+    });
+
+    // ── Render scores ──
+    function renderScores(data) {
+      if (!data.students.length) {
+        elContent.innerHTML = '<div class="empty-state"><h2>No submissions yet</h2><p>No students have submitted answers for this quiz.</p></div>';
+        return;
+      }
+
+      var qs = data.questions;
+      var totalPossible = qs.reduce(function (s, q) { return s + q.points; }, 0);
+      var studentCount = data.students.length;
+
+      // Compute stats
+      var totalEarnedAll = data.students.reduce(function (s, st) { return s + st.total_earned; }, 0);
+      var classAvg = totalPossible > 0 ? Math.round(totalEarnedAll / studentCount / totalPossible * 100) : 0;
+      var perfectCount = data.students.filter(function (s) { return s.total_earned === totalPossible; }).length;
+      var answeredCount = data.students.filter(function (s) {
+        return Object.keys(s.scores).length === qs.length;
+      }).length;
+
+      var html = '';
+
+      // Stats strip
+      html += '<div class="stats-strip">';
+      html += '<div class="stat-pill"><div><div class="stat-value">' + classAvg + '%</div><div class="stat-label">Class avg</div></div></div>';
+      html += '<div class="stat-pill"><div><div class="stat-value">' + studentCount + '</div><div class="stat-label">Students</div></div></div>';
+      html += '<div class="stat-pill"><div><div class="stat-value">' + answeredCount + '</div><div class="stat-label">Completed</div></div></div>';
+      html += '<div class="stat-pill"><div><div class="stat-value">' + perfectCount + '</div><div class="stat-label">Perfect</div></div></div>';
+      html += '</div>';
+
+      // Header
+      html += '<div class="scores-header">' +
+        '<div><h2>' + esc(data.quiz_title) + '</h2>' +
+        '<span class="scores-summary">' + qs.length + ' questions &middot; ' + totalPossible + ' pts total</span></div>' +
+        '<button class="btn-export" onclick="exportCSV()">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
+        'Export CSV</button></div>';
+
+      // Table
+      html += '<div class="scores-wrap"><table class="scores-table"><thead><tr>' +
+        '<th class="col-student">Student</th>';
+
+      qs.forEach(function (q) {
+        html += '<th>' + esc(q.qid) + '<span class="pts">' + q.points + ' pt' + (q.points !== 1 ? 's' : '') + '</span></th>';
+      });
+      html += '<th class="col-total">Total<span class="pts">/ ' + totalPossible + '</span></th></tr></thead><tbody>';
+
+      data.students.forEach(function (s, idx) {
+        var delay = Math.min(idx * 30, 600);
+        html += '<tr style="animation-delay:' + delay + 'ms">';
+        html += '<td class="col-student">' + esc(s.student_id) + '</td>';
+        qs.forEach(function (q) {
+          var sc = s.scores[q.qid];
+          if (!sc) {
+            html += '<td class="cell-unanswered">&mdash;</td>';
+          } else if (sc.correct) {
+            html += '<td class="cell-correct">' + sc.points_earned + '</td>';
+          } else {
+            html += '<td class="cell-incorrect">0</td>';
+          }
+        });
+        var pct = totalPossible > 0 ? Math.round(s.total_earned / totalPossible * 100) : 0;
+        var barClass = pct >= 80 ? 'high' : pct >= 50 ? 'mid' : 'low';
+        html += '<td class="col-total"><div class="total-cell">' +
+          '<span class="total-num">' + s.total_earned + '</span>' +
+          '<span class="total-bar-track"><span class="total-bar-fill ' + barClass + '" style="width:' + pct + '%"></span></span>' +
+          '<span class="total-pct">' + pct + '%</span>' +
+          '</div></td>';
+        html += '</tr>';
+      });
+
+      html += '</tbody></table></div>';
+      elContent.innerHTML = html;
+    }
+
+    function esc(s) {
+      var d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    // ── CSV Export ──
+    window.exportCSV = function () {
+      if (!currentData) return;
+      var qs = currentData.questions;
+      var rows = [];
+
+      var header = ["student_id"];
+      qs.forEach(function (q) { header.push(q.qid + " (" + q.points + "pts)"); });
+      header.push("total");
+      header.push("total_possible");
+      header.push("percent");
+      rows.push(header.join(","));
+
+      var totalPossible = qs.reduce(function (s, q) { return s + q.points; }, 0);
+      currentData.students.forEach(function (s) {
+        var row = [csvCell(s.student_id)];
+        qs.forEach(function (q) {
+          var sc = s.scores[q.qid];
+          row.push(sc ? sc.points_earned : "");
+        });
+        var pct = totalPossible > 0 ? Math.round(s.total_earned / totalPossible * 100) : 0;
+        row.push(s.total_earned);
+        row.push(totalPossible);
+        row.push(pct);
+        rows.push(row.join(","));
+      });
+
+      var csv = rows.join("\n");
+      var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = currentData.quiz_title.replace(/[^a-zA-Z0-9_-]/g, "_") + "_scores.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    function csvCell(val) {
+      var s = String(val);
+      if (s.indexOf(",") !== -1 || s.indexOf('"') !== -1 || s.indexOf("\n") !== -1) {
+        return '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }
+  </script>
+</body>
+</html>

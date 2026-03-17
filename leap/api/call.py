@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -28,9 +28,14 @@ class CallRequest(BaseModel):
 @router.post("/exp/{experiment}/call")
 async def call_function(
     body: CallRequest,
+    request: Request,
     exp_info: ExperimentInfo = Depends(get_experiment_info),
     session: Session = Depends(get_db_session),
 ):
+    func = exp_info.functions.get(body.func_name)
+    if func and getattr(func, "_leap_adminonly", False):
+        if not request.session.get("admin", False):
+            raise HTTPException(403, detail="Admin access required")
     try:
         result = rpc.execute_rpc(
             exp_info,

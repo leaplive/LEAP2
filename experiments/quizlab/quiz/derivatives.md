@@ -3,7 +3,7 @@ title: Derivatives Quiz
 allow_resubmit: false
 ---
 
-## Question 1: q1
+## Question 1: q1 [2]
 
 What is $\frac{d}{dx}(x^3)$?
 
@@ -18,7 +18,7 @@ Consider the **power rule**: $\frac{d}{dx}(x^n) = nx^{n-1}$
 
 ---
 
-## Question 2: q2
+## Question 2: q2 [3]
 
 Which of the following are trigonometric functions?
 
@@ -31,7 +31,7 @@ Which of the following are trigonometric functions?
 
 ---
 
-## Question 3: q3
+## Question 3: q3 [5]
 
 What is $\frac{d}{dx}(\sin x)$ evaluated at $x = 0$?
 
@@ -41,7 +41,7 @@ What is $\frac{d}{dx}(\sin x)$ evaluated at $x = 0$?
 
 ---
 
-## Question 4: q4
+## Question 4: q4 [2]
 
 The derivative of a constant function $f(x) = 7$ is:
 
@@ -54,7 +54,7 @@ The derivative of a constant function $f(x) = 7$ is:
 
 ---
 
-## Question 5: q5
+## Question 5: q5 [3]
 
 Select all functions whose derivative is $2x$:
 
@@ -67,7 +67,7 @@ Select all functions whose derivative is $2x$:
 
 ---
 
-## Question 6: q6
+## Question 6: q6 [5]
 
 Compute $\frac{d}{dx}(3x^4)$ at $x = 1$.
 

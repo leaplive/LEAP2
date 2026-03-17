@@ -63,6 +63,12 @@ def noregcheck(func):
     return func
 
 
+def adminonly(func):
+    """Decorator: restrict this function to admin sessions only."""
+    func._leap_adminonly = True
+    return func
+
+
 def _has_flag(func, flag: str) -> bool:
     return getattr(func, flag, False)
 

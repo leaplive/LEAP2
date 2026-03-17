@@ -66,12 +66,19 @@ class TestFunctionsAPIFlags:
         noregcheck_funcs = [n for n, info in funcs.items() if info.get("noregcheck")]
         assert len(noregcheck_funcs) > 0
 
+    def test_functions_include_adminonly_flag(self, client):
+        resp = client.get("/exp/default/functions")
+        funcs = resp.json()
+        adminonly_funcs = [n for n, info in funcs.items() if info.get("adminonly")]
+        assert len(adminonly_funcs) > 0
+
     def test_normal_function_flags_false(self, client):
         resp = client.get("/exp/default/functions")
         funcs = resp.json()
         assert "square" in funcs
         assert funcs["square"]["nolog"] is False
         assert funcs["square"]["noregcheck"] is False
+        assert funcs["square"]["adminonly"] is False
 
     def test_all_functions_have_flag_fields(self, client):
         resp = client.get("/exp/default/functions")
@@ -79,6 +86,7 @@ class TestFunctionsAPIFlags:
         for name, info in funcs.items():
             assert "nolog" in info, f"{name} missing nolog"
             assert "noregcheck" in info, f"{name} missing noregcheck"
+            assert "adminonly" in info, f"{name} missing adminonly"
 
 
 class TestCORSDisabledByDefault:

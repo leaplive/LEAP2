@@ -78,6 +78,13 @@ class TestExperiments:
         assert "display_name" in exp
         assert "description" in exp
         assert "entry_point" in exp
+        assert "pages" in exp
+
+    def test_experiment_metadata_pages_default_empty(self, client):
+        """Experiments without pages config should return empty list."""
+        resp = client.get("/api/experiments")
+        exp = resp.json()["experiments"][0]
+        assert exp["pages"] == []
 
     def test_functions_list(self, client):
         resp = client.get("/exp/default/functions")
@@ -595,6 +602,36 @@ class TestDecoratorsViaAPI:
         assert "ping" in funcs
         assert "fast_step" in funcs
         assert "logged_reset" in funcs
+        assert "wipe_data" in funcs
+
+    def test_adminonly_blocked_without_admin(self, client):
+        """@adminonly function returns 403 for non-admin callers."""
+        resp = _call_func(client, func="wipe_data", sid="anon_user")
+        assert resp.status_code == 403
+        assert "Admin access required" in resp.json()["detail"]
+
+    def test_adminonly_blocked_for_registered_student(self, admin_client):
+        """@adminonly function returns 403 even for registered students without admin session."""
+        _register_student(admin_client)
+        # Create a non-admin client by using a fresh TestClient
+        from fastapi.testclient import TestClient
+        app = admin_client.app
+        with TestClient(app) as non_admin:
+            resp = _call_func(non_admin, func="wipe_data", sid="s001")
+            assert resp.status_code == 403
+
+    def test_adminonly_allowed_for_admin(self, admin_client):
+        """@adminonly function executes successfully for admin sessions."""
+        _register_student(admin_client)
+        resp = _call_func(admin_client, func="wipe_data", sid="s001")
+        assert resp.status_code == 200
+        assert resp.json()["result"] == "wiped"
+
+    def test_adminonly_function_metadata(self, client):
+        """@adminonly flag is exposed in function metadata."""
+        funcs = client.get("/exp/default/functions").json()
+        assert funcs["wipe_data"]["adminonly"] is True
+        assert funcs["square"]["adminonly"] is False
 
 
 # ── Export Logs ──

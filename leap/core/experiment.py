@@ -124,7 +124,9 @@ def load_functions(funcs_dir: Path) -> dict[str, callable]:
             logger.exception("Failed to load %s", py_file)
             continue
 
-        for attr_name in dir(module):
+        exported = getattr(module, "__all__", None)
+        names = exported if exported is not None else dir(module)
+        for attr_name in names:
             if attr_name.startswith("_"):
                 continue
             obj = getattr(module, attr_name)
@@ -151,6 +153,7 @@ def get_function_info(func: callable) -> dict[str, str]:
         "doc": inspect.getdoc(func) or "",
         "nolog": getattr(func, "_leap_nolog", False),
         "noregcheck": getattr(func, "_leap_noregcheck", False),
+        "adminonly": getattr(func, "_leap_adminonly", False),
         "ratelimit": getattr(func, "_leap_ratelimit", "default"),
     }
 
@@ -173,6 +176,7 @@ class ExperimentInfo:
         self.entry_point = self.frontmatter.get("entry_point", ENTRY_POINT_README)
         self.require_registration = self.frontmatter.get("require_registration", True)
         self.leap_version = self.frontmatter.get("leap_version", "")
+        self.pages = self.frontmatter.get("pages", [])
 
         # Check leap_version requirement
         self.version_ok, self.version_message = check_leap_version(self.leap_version)
@@ -193,6 +197,7 @@ class ExperimentInfo:
         self.entry_point = self.frontmatter.get("entry_point", ENTRY_POINT_README)
         self.require_registration = self.frontmatter.get("require_registration", True)
         self.leap_version = self.frontmatter.get("leap_version", "")
+        self.pages = self.frontmatter.get("pages", [])
         self.version_ok, self.version_message = check_leap_version(self.leap_version)
         return self.frontmatter
 
@@ -214,6 +219,7 @@ class ExperimentInfo:
             "require_registration": self.require_registration,
             "leap_version": self.leap_version,
             "leap_version_ok": self.version_ok,
+            "pages": self.pages,
         }
 
 

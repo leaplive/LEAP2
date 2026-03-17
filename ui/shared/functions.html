@@ -100,6 +100,12 @@
               b2.textContent = "@noregcheck";
               badges.appendChild(b2);
             }
+            if (info.adminonly) {
+              var ba = document.createElement("span");
+              ba.className = "badge badge-adminonly";
+              ba.textContent = "@adminonly";
+              badges.appendChild(ba);
+            }
             var rl = info.ratelimit;
             if (rl !== false) {
               var b3 = document.createElement("span");

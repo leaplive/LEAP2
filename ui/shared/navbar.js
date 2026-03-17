@@ -95,6 +95,34 @@
       } else {
         document.getElementById("dash-link").href = "/static/readme.html?exp=" + expName;
       }
+      // ── Render extra experiment pages ──
+      var pages = exp.pages || [];
+      var divider = linksEl.querySelector(".nav-divider");
+      var adminPageEls = [];
+      pages.forEach(function (pg) {
+        var a = document.createElement("a");
+        a.href = "/exp/" + expName + "/ui/" + pg.file;
+        a.textContent = pg.name;
+        a.className = pg.admin ? "nav-lab nav-lab-admin" : "nav-lab";
+        var pageName = pg.file.replace(/\.html$/, "");
+        if (pageName === currentPage) a.setAttribute("aria-current", "page");
+        if (pg.admin) {
+          a.style.display = "none";
+          adminPageEls.push(a);
+        }
+        linksEl.insertBefore(a, divider);
+      });
+      if (adminPageEls.length) {
+        fetch("/api/auth-status", { credentials: "same-origin" })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (d.admin) {
+              adminPageEls.forEach(function (el) { el.style.display = ""; });
+            }
+          })
+          .catch(function () {});
+      }
+
       var sc = exp.student_count || 0;
       if (sc) document.getElementById("students-link").textContent = "Students (" + sc + ")";
       var fc = exp.function_count || 0;
