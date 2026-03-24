@@ -6,6 +6,8 @@ import os
 import logging
 from pathlib import Path
 
+import yaml
+
 logger = logging.getLogger(__name__)
 
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
@@ -18,23 +20,31 @@ logging.basicConfig(
 _PROJECT_ROOT_TYPES = ("lab",)
 
 
+def parse_frontmatter_text(text: str, defaults: dict | None = None) -> dict:
+    """Parse YAML frontmatter from a text string. Returns defaults if no valid frontmatter."""
+    result = dict(defaults) if defaults else {}
+    if not text.startswith("---"):
+        return result
+    end = text.find("---", 3)
+    if end == -1:
+        return result
+    try:
+        fm = yaml.safe_load(text[3:end]) or {}
+    except yaml.YAMLError:
+        return result
+    result.update(fm)
+    return result
+
+
 def _is_lab_root(path: Path) -> bool:
-    """Check if a directory is a LEAP project root (has README.md with a project-level type in frontmatter)."""
+    """Check if a directory is a LEAP project root (has README.md with type: lab in frontmatter)."""
     readme = path / "README.md"
     if not readme.is_file():
         return False
     try:
         text = readme.read_text(encoding="utf-8")
-        if not text.startswith("---"):
-            return False
-        end = text.find("---", 3)
-        if end == -1:
-            return False
-        frontmatter = text[3:end]
-        for t in _PROJECT_ROOT_TYPES:
-            if f"type: {t}" in frontmatter or f"type: '{t}'" in frontmatter or f'type: "{t}"' in frontmatter:
-                return True
-        return False
+        fm = parse_frontmatter_text(text)
+        return fm.get("type") in _PROJECT_ROOT_TYPES
     except Exception:
         return False
 

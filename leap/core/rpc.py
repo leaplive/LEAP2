@@ -34,16 +34,33 @@ class RateLimitError(Exception):
 
 _rate_windows: dict[tuple, list[float]] = defaultdict(list)
 _PERIODS = {"second": 1, "minute": 60, "hour": 3600, "day": 86400}
+_parsed_limits: dict[str, tuple[int, int]] = {}
+_SWEEP_INTERVAL = 300  # seconds between stale key sweeps
+_last_sweep: float = 0.0
 
 
 def _parse_limit(limit_str: str) -> tuple[int, int]:
+    cached = _parsed_limits.get(limit_str)
+    if cached:
+        return cached
     count, period = limit_str.strip().split("/")
-    return int(count), _PERIODS[period]
+    result = int(count), _PERIODS[period]
+    _parsed_limits[limit_str] = result
+    return result
 
 
 def _check_rate_limit(key: tuple, limit_str: str) -> bool:
+    global _last_sweep
     max_calls, window = _parse_limit(limit_str)
     now = time.monotonic()
+
+    # Periodic sweep of stale keys
+    if now - _last_sweep > _SWEEP_INTERVAL:
+        _last_sweep = now
+        stale = [k for k, ts in _rate_windows.items() if not ts or ts[-1] < now - window]
+        for k in stale:
+            del _rate_windows[k]
+
     timestamps = _rate_windows[key]
     cutoff = now - window
     _rate_windows[key] = [t for t in timestamps if t > cutoff]
@@ -129,7 +146,6 @@ def execute_rpc(
         if not storage.is_registered(session, student_id):
             raise PermissionError(f"Student '{student_id}' is not registered")
 
-    # Rate limiting
     env_limit = os.environ.get("LEAP_RATE_LIMIT")
     if env_limit != "0":
         limit_val = getattr(func, "_leap_ratelimit", "default")

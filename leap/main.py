@@ -54,25 +54,16 @@ def create_app(root=None) -> FastAPI:
                 app.mount(mount_path, StaticFiles(directory=str(exp_info.ui_dir)), name=f"ui-{exp_name}")
                 logger.info("Mounted %s -> %s", mount_path, exp_info.ui_dir)
 
-        # Serve project-level assets (icons, images, etc.)
         assets_dir = resolved_root / "assets"
         if assets_dir.is_dir():
             app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="project-assets")
             logger.info("Mounted /assets -> %s", assets_dir)
 
-        # Read lab info from root README frontmatter
-        lab_info = {"name": "", "display_name": "", "icon": "", "description": "", "author": "", "organization": "", "tags": [], "repository": ""}
+        _LAB_FIELDS = {"name": "", "display_name": "", "icon": "", "description": "", "author": "", "organization": "", "tags": [], "repository": ""}
         root_readme = resolved_root / "README.md"
-        if root_readme.is_file():
-            fm = parse_frontmatter(root_readme)
-            lab_info["name"] = fm.get("name", "")
-            lab_info["display_name"] = fm.get("display_name", "") or fm.get("name", "")
-            lab_info["icon"] = fm.get("icon", "")
-            lab_info["description"] = fm.get("description", "")
-            lab_info["author"] = fm.get("author", "")
-            lab_info["organization"] = fm.get("organization", "")
-            lab_info["tags"] = fm.get("tags", [])
-            lab_info["repository"] = fm.get("repository", "")
+        fm = parse_frontmatter(root_readme) if root_readme.is_file() else {}
+        lab_info = {k: fm.get(k, default) for k, default in _LAB_FIELDS.items()}
+        lab_info["display_name"] = lab_info["display_name"] or lab_info["name"]
         app.state.lab_info = lab_info
 
         app.state.ui_root = ui_dir(resolved_root)

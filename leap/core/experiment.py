@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import inspect
 import logging
+import operator as _operator
 import re
 import sys
 import types
@@ -14,7 +15,7 @@ from typing import Any
 import yaml
 
 from leap import __version__
-from leap.config import experiments_dir
+from leap.config import experiments_dir, parse_frontmatter_text
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,13 @@ def _parse_version(v: str) -> tuple[int, ...]:
     return tuple(int(x) for x in v.split(".") if x.isdigit())
 
 
+_VERSION_OPS: list[tuple[str, _operator.attrgetter | callable, str, str]] = [
+    (">=", _operator.ge, "{cur} >= {ver}", "{cur} < {ver} (required: {req})"),
+    (">",  _operator.gt, "{cur} > {ver}",  "{cur} <= {ver} (required: {req})"),
+    ("==", _operator.eq, "{cur} == {ver}", "{cur} != {ver} (required: {req})"),
+]
+
+
 def check_leap_version(required: str) -> tuple[bool, str]:
     """Check if current LEAP2 version satisfies a requirement like '>=1.0'.
 
@@ -51,71 +59,42 @@ def check_leap_version(required: str) -> tuple[bool, str]:
     if not req:
         return True, ""
 
-    if req.startswith(">="):
-        min_ver = _parse_version(req[2:])
-        cur_ver = _parse_version(__version__)
-        if cur_ver >= min_ver:
-            return True, f"LEAP2 {__version__} >= {req[2:]}"
-        return False, f"LEAP2 {__version__} < {req[2:]} (required: {req})"
-    elif req.startswith(">"):
-        min_ver = _parse_version(req[1:])
-        cur_ver = _parse_version(__version__)
-        if cur_ver > min_ver:
-            return True, f"LEAP2 {__version__} > {req[1:]}"
-        return False, f"LEAP2 {__version__} <= {req[1:]} (required: {req})"
-    elif req.startswith("=="):
-        req_ver = _parse_version(req[2:])
-        cur_ver = _parse_version(__version__)
-        if cur_ver == req_ver:
-            return True, f"LEAP2 {__version__} == {req[2:]}"
-        return False, f"LEAP2 {__version__} != {req[2:]} (required: {req})"
-    else:
-        # Treat bare version as >=
-        min_ver = _parse_version(req)
-        cur_ver = _parse_version(__version__)
-        if cur_ver >= min_ver:
-            return True, f"LEAP2 {__version__} >= {req}"
-        return False, f"LEAP2 {__version__} < {req} (required: >={req})"
+    cur_ver = _parse_version(__version__)
+    cur = f"LEAP2 {__version__}"
+
+    for prefix, op, ok_fmt, fail_fmt in _VERSION_OPS:
+        if req.startswith(prefix):
+            ver_str = req[len(prefix):]
+            if op(cur_ver, _parse_version(ver_str)):
+                return True, ok_fmt.format(cur=cur, ver=ver_str)
+            return False, fail_fmt.format(cur=cur, ver=ver_str, req=req)
+
+    # Bare version treated as >=
+    if _operator.ge(cur_ver, _parse_version(req)):
+        return True, f"{cur} >= {req}"
+    return False, f"{cur} < {req} (required: >={req})"
 
 
 def validate_experiment_name(name: str) -> bool:
     return bool(VALID_NAME_RE.match(name))
 
 
-def parse_frontmatter_text(text: str) -> dict:
-    """Parse YAML frontmatter from a README string."""
-    if not text.startswith("---"):
-        return dict(DEFAULT_FRONTMATTER)
-
-    end = text.find("---", 3)
-    if end == -1:
-        return dict(DEFAULT_FRONTMATTER)
-
-    try:
-        fm = yaml.safe_load(text[3:end]) or {}
-    except yaml.YAMLError:
-        return dict(DEFAULT_FRONTMATTER)
-
-    result = dict(DEFAULT_FRONTMATTER)
-    result.update(fm)
-    return result
-
-
 def parse_frontmatter(readme_path: Path) -> dict:
     """Parse YAML frontmatter from a README.md file."""
-    if not readme_path.exists():
+    try:
+        text = readme_path.read_text(encoding="utf-8")
+    except OSError:
         return dict(DEFAULT_FRONTMATTER)
-
-    text = readme_path.read_text(encoding="utf-8")
-    return parse_frontmatter_text(text)
+    return parse_frontmatter_text(text, DEFAULT_FRONTMATTER)
 
 
 def update_frontmatter_field(readme_path: Path, field: str, value: Any) -> bool:
     """Update or add a field in README YAML frontmatter. Returns True if written."""
-    if not readme_path.exists():
+    try:
+        text = readme_path.read_text(encoding="utf-8")
+    except OSError:
         return False
 
-    text = readme_path.read_text(encoding="utf-8")
     if not text.startswith("---"):
         return False
 
@@ -247,20 +226,8 @@ class ExperimentInfo:
         self.db_path = path / "db" / "experiment.db"
 
         self.frontmatter = parse_frontmatter(self.readme_path)
-        self.display_name = self.frontmatter.get("display_name") or name
-        self.description = self.frontmatter.get("description", "")
-        self.version = self.frontmatter.get("version", "")
-        self.entry_point = self.frontmatter.get("entry_point", ENTRY_POINT_README)
-        self.require_registration = self.frontmatter.get("require_registration", True)
-        self.leap_version = self.frontmatter.get("leap_version", "")
-        self.pages = self.frontmatter.get("pages", [])
-        self.author = self.frontmatter.get("author", "")
-        self.organization = self.frontmatter.get("organization", "")
-        self.tags = self.frontmatter.get("tags", [])
-        self.repository = self.frontmatter.get("repository", "")
+        self._apply_frontmatter()
 
-        # Check leap_version requirement
-        self.version_ok, self.version_message = check_leap_version(self.leap_version)
         if self.leap_version and not self.version_ok:
             logger.warning(
                 "Experiment '%s' requires %s — %s", name, self.leap_version, self.version_message
@@ -269,21 +236,26 @@ class ExperimentInfo:
         self.functions: dict[str, callable] = {}
         self.reload_functions()
 
+    def _apply_frontmatter(self):
+        """Sync instance attributes from self.frontmatter."""
+        fm = self.frontmatter
+        self.display_name = fm.get("display_name") or self.name
+        self.description = fm.get("description", "")
+        self.version = fm.get("version", "")
+        self.entry_point = fm.get("entry_point", ENTRY_POINT_README)
+        self.require_registration = fm.get("require_registration", True)
+        self.leap_version = fm.get("leap_version", "")
+        self.pages = fm.get("pages", [])
+        self.author = fm.get("author", "")
+        self.organization = fm.get("organization", "")
+        self.tags = fm.get("tags", [])
+        self.repository = fm.get("repository", "")
+        self.version_ok, self.version_message = check_leap_version(self.leap_version)
+
     def reload_metadata(self) -> dict:
         """Re-parse README frontmatter from disk."""
         self.frontmatter = parse_frontmatter(self.readme_path)
-        self.display_name = self.frontmatter.get("display_name") or self.name
-        self.description = self.frontmatter.get("description", "")
-        self.version = self.frontmatter.get("version", "")
-        self.entry_point = self.frontmatter.get("entry_point", ENTRY_POINT_README)
-        self.require_registration = self.frontmatter.get("require_registration", True)
-        self.leap_version = self.frontmatter.get("leap_version", "")
-        self.pages = self.frontmatter.get("pages", [])
-        self.author = self.frontmatter.get("author", "")
-        self.organization = self.frontmatter.get("organization", "")
-        self.tags = self.frontmatter.get("tags", [])
-        self.repository = self.frontmatter.get("repository", "")
-        self.version_ok, self.version_message = check_leap_version(self.leap_version)
+        self._apply_frontmatter()
         return self.frontmatter
 
     def reload_functions(self) -> int:

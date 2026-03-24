@@ -79,9 +79,10 @@ async def list_functions(
 async def get_readme(
     exp_info: ExperimentInfo = Depends(get_experiment_info),
 ):
-    if not exp_info.readme_path.exists():
+    try:
+        text = exp_info.readme_path.read_text(encoding="utf-8")
+    except OSError:
         raise HTTPException(404, detail="No README found for this experiment")
-    text = exp_info.readme_path.read_text(encoding="utf-8")
     frontmatter = dict(exp_info.frontmatter)
     body = text
     if text.startswith("---"):

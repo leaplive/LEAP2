@@ -307,5 +307,4 @@ def get_log_options(session: Session) -> dict:
             select(Log.trial).where(Log.trial.isnot(None)).distinct().order_by(Log.trial)
         )
     ]
-    log_count = session.scalar(select(sa_func.count()).select_from(Log)) or 0
-    return {"students": students, "trials": trials, "log_count": log_count}
+    return {"students": students, "trials": trials, "log_count": count_logs(session)}
