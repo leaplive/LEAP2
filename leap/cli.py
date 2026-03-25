@@ -1259,8 +1259,13 @@ def install_experiment_fn(
     return name, dest, updating
 
 
-def discover_registry_fn(tag: str | None = None, entry_type: str | None = None) -> list[dict]:
-    """Fetch the leaplive registry and return entries, optionally filtered by tag or type."""
+def discover_registry_fn(
+    tag: str | None = None,
+    entry_type: str | None = None,
+    author: str | None = None,
+    organization: str | None = None,
+) -> list[dict]:
+    """Fetch the leaplive registry and return entries, optionally filtered."""
     try:
         response = requests.get(REGISTRY_URL, timeout=10)
         response.raise_for_status()
@@ -1280,6 +1285,22 @@ def discover_registry_fn(tag: str | None = None, entry_type: str | None = None) 
 
     if entry_type:
         entries = [e for e in entries if e.get("type", "") == entry_type]
+
+    if author:
+        author_lower = author.lower()
+        def _match_author(e):
+            a = e.get("authors", e.get("author", []))
+            vals = a if isinstance(a, list) else [a] if a else []
+            return any(author_lower in v.lower() for v in vals)
+        entries = [e for e in entries if _match_author(e)]
+
+    if organization:
+        org_lower = organization.lower()
+        def _match_org(e):
+            o = e.get("organizations", e.get("organization", []))
+            vals = o if isinstance(o, list) else [o] if o else []
+            return any(org_lower in v.lower() for v in vals)
+        entries = [e for e in entries if _match_org(e)]
 
     return entries
 
@@ -2125,14 +2146,16 @@ def export_logs(
 def discover(
     tag: Optional[str] = typer.Option(None, "--tag", "-t", help="Filter by tag"),
     entry_type: Optional[str] = typer.Option(None, "--type", help="Filter by type: experiment or lab"),
+    author: Optional[str] = typer.Option(None, "--author", "-a", help="Filter by author name (substring match)"),
+    organization: Optional[str] = typer.Option(None, "--org", "-o", help="Filter by organization (substring match)"),
 ):
     """Browse experiments and labs in the leaplive registry."""
     from rich.console import Console
-    from rich.table import Table
+    from rich.panel import Panel
     from rich.text import Text
 
     try:
-        labs = discover_registry_fn(tag, entry_type=entry_type)
+        labs = discover_registry_fn(tag, entry_type=entry_type, author=author, organization=organization)
     except typer.BadParameter as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1)
@@ -2143,29 +2166,55 @@ def discover(
         console.print("[dim]No entries found in registry.[/dim]")
         return
 
-    table = Table(title="LEAP Registry", show_header=True, header_style="bold")
-    table.add_column("Name", style="cyan", no_wrap=True)
-    table.add_column("Type", justify="center", width=12)
-    table.add_column("Description")
-    table.add_column("Tags", style="dim")
-    table.add_column("Repository")
+    console.print(f"[bold]LEAP Registry[/bold]  [dim]({len(labs)} entries)[/dim]\n")
 
     for lab in labs:
         name = lab.get("name", "")
         entry_type = lab.get("type", "")
-        desc = lab.get("description", "")
-        tags = ", ".join(lab.get("tags", []))
-        repo = lab.get("repository", "")
-        type_text = Text(entry_type, style="green" if entry_type == "lab" else "blue")
-        short_repo = _shorten_repo_url(repo)
-        repo_text = f"[link={repo}]{short_repo}[/link]" if repo else ""
-        table.add_row(name, type_text, desc, tags, repo_text)
+        type_color = "green" if entry_type == "lab" else "blue"
 
-    console.print(table)
+        lines = []
+        desc = lab.get("description", "")
+        if desc:
+            lines.append(desc)
+            lines.append("")
+
+        lines.append(f"[dim]Type:[/dim]           [{type_color}]{entry_type}[/{type_color}]")
+
+        version = lab.get("version", "")
+        if version:
+            lines.append(f"[dim]Version:[/dim]        {version}")
+
+        _a = lab.get("authors", [])
+        authors = ", ".join(_a) if isinstance(_a, list) else (_a or "")
+        if authors:
+            lines.append(f"[dim]Authors:[/dim]        [bold white]{authors}[/bold white]")
+
+        _o = lab.get("organizations", [])
+        orgs = ", ".join(_o) if isinstance(_o, list) else (_o or "")
+        if orgs:
+            lines.append(f"[dim]Organizations:[/dim]  {orgs}")
+
+        tags = lab.get("tags", [])
+        if tags:
+            tag_str = "  ".join(f"[cyan]#{t}[/cyan]" for t in tags)
+            lines.append(f"[dim]Tags:[/dim]           {tag_str}")
+
+        repo = lab.get("repository", "")
+        if repo:
+            short_repo = _shorten_repo_url(repo)
+            lines.append(f"[dim]Repository:[/dim]     [link={repo}][underline]{short_repo}[/underline][/link]")
+
+        body = "\n".join(lines)
+        console.print(Panel(
+            body,
+            title=f"[bold cyan]{name}[/bold cyan] [{type_color}]{entry_type}[/{type_color}]",
+            border_style=type_color,
+            padding=(0, 2),
+            expand=False,
+        ))
     console.print()
-    example_repo = labs[0].get("repository", "")
-    example_short = _shorten_repo_url(example_repo)
-    console.print(f"Install with:  [bold]leap add {example_short}[/bold]")
+    console.print("[dim]Install a lab with:[/dim]  [bold]leap add <repository>[/bold]")
 
 
 @app.command("publish")
