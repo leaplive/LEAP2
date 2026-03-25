@@ -1596,7 +1596,7 @@ def run(
             lab_lines = []
             lab_desc = fm.get("description", "")
             if lab_desc:
-                lab_lines.append(f"[dim]{lab_desc}[/dim]")
+                lab_lines.append(f"[dim]Description:[/dim]    {lab_desc}")
 
             authors = _as_list(fm.get("authors", fm.get("author", [])))
             orgs = _as_list(fm.get("organizations", fm.get("organization", [])))
