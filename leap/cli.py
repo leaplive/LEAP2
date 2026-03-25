@@ -1590,13 +1590,43 @@ def run(
     if root_readme.is_file():
         fm = parse_frontmatter(root_readme)
         lab_name = fm.get("display_name") or fm.get("name") or resolved.name
-        lab_desc = fm.get("description", "")
         if lab_name:
-            line = f"  [bold]{lab_name}[/bold]"
+            from leap.core.experiment import _as_list
+
+            lab_lines = []
+            lab_desc = fm.get("description", "")
             if lab_desc:
-                line += f"  [dim]—[/dim]  [dim]{lab_desc}[/dim]"
-            console.print(line)
-            console.print()
+                lab_lines.append(f"[dim]{lab_desc}[/dim]")
+
+            authors = _as_list(fm.get("authors", fm.get("author", [])))
+            orgs = _as_list(fm.get("organizations", fm.get("organization", [])))
+            if authors:
+                lab_lines.append(f"[dim]Authors:[/dim]        [bold white]{', '.join(authors)}[/bold white]")
+            if orgs:
+                lab_lines.append(f"[dim]Organizations:[/dim]  {', '.join(orgs)}")
+
+            tags = fm.get("tags", [])
+            if tags:
+                tag_str = "  ".join(f"[cyan]#{t}[/cyan]" for t in tags)
+                lab_lines.append(f"[dim]Tags:[/dim]           {tag_str}")
+
+            repo = fm.get("repository", "")
+            if repo:
+                short = repo.replace("https://", "").replace("http://", "").removesuffix(".git")
+                lab_lines.append(f"[dim]Repository:[/dim]     [underline]{short}[/underline]")
+
+            db_backend = fm.get("db", "")
+            if db_backend:
+                lab_lines.append(f"[dim]Database:[/dim]       [yellow]{db_backend}[/yellow]")
+
+            body = "\n".join(lab_lines) if lab_lines else ""
+            console.print(Panel(
+                body,
+                title=f"[bold]{lab_name}[/bold]",
+                border_style="green",
+                padding=(0, 2),
+                expand=False,
+            ))
 
     # ── Discover experiments (suppress logger since we print a rich table) ──
     _exp_logger = _logging.getLogger("leap.core.experiment")
