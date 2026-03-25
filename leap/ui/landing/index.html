@@ -26,18 +26,18 @@
     .lab-name-badge {
       display: inline-flex;
       align-items: center;
-      gap: 0.35rem;
-      font-size: 0.75rem;
+      gap: 0.375rem;
+      font-size: 0.8125rem;
       font-weight: 500;
-      padding: 0.125rem 0.625rem;
+      padding: 0.1875rem 0.75rem;
       border-radius: 999px;
       background: var(--color-primary-light);
       color: var(--color-primary);
     }
     .lab-name-badge img {
-      width: 16px;
-      height: 16px;
-      border-radius: 3px;
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
       object-fit: contain;
     }
     .lab-name-badge:empty { display: none; }
@@ -60,6 +60,10 @@
       width: 100%;
       min-width: 120px;
       position: relative;
+      transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .navbar .navbar-center .search-bar:focus-within {
+      transform: translateY(-1px);
     }
     .navbar .navbar-links {
       flex: 1;
@@ -77,6 +81,10 @@
       pointer-events: none;
       width: 14px;
       height: 14px;
+      transition: color 0.3s ease;
+    }
+    .search-bar:focus-within svg {
+      color: var(--color-primary);
     }
     .search-bar input {
       width: 100%;
@@ -89,11 +97,12 @@
       background: var(--color-surface);
       color: var(--color-text);
       outline: none;
-      transition: border-color var(--transition), box-shadow var(--transition);
+      transition: border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
     }
     .search-bar input:focus {
-      border-color: var(--color-primary);
-      box-shadow: 0 0 0 2px var(--color-primary-light);
+      border-color: rgba(var(--color-primary-rgb), 0.5);
+      background: color-mix(in srgb, var(--color-surface) 90%, transparent);
+      box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.1), 0 0 0 3px var(--color-primary-light);
     }
     .search-bar input::placeholder { color: var(--color-text-muted); }
 
@@ -165,11 +174,11 @@
     }
 
     @keyframes fadeInUp {
-      from { opacity: 0; transform: translateY(12px); }
+      from { opacity: 0; transform: translateY(16px); }
       to   { opacity: 1; transform: translateY(0); }
     }
     .card-animate {
-      animation: fadeInUp 0.35s ease both;
+      animation: fadeInUp 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
     }
 
     .no-results {
@@ -177,6 +186,200 @@
       padding: 2rem 1rem;
       color: var(--color-text-muted);
       font-size: 0.9375rem;
+    }
+
+    /* ── Lab hero masthead ── */
+    .lab-hero {
+      display: flex;
+      align-items: flex-start;
+      gap: 1.25rem;
+      padding: 1.75rem 2rem;
+      margin-bottom: 1.5rem;
+      border-radius: var(--radius-lg);
+      background: color-mix(in srgb, var(--color-surface) 65%, transparent);
+      backdrop-filter: blur(12px) saturate(1.2);
+      -webkit-backdrop-filter: blur(12px) saturate(1.2);
+      border: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.03), 0 0 0 1px rgba(255,255,255,0.02) inset;
+      animation: fadeInUp 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+    }
+    .lab-hero::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -10%;
+      width: 50%;
+      height: 150%;
+      background: radial-gradient(circle, rgba(var(--color-primary-rgb), 0.06), transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .lab-hero > * {
+      position: relative;
+      z-index: 1;
+    }
+    .lab-hero:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-md);
+      border-color: rgba(var(--color-primary-rgb), 0.25);
+    }
+    .lab-hero:active {
+      transform: scale(0.995);
+      transition-duration: 0.1s;
+    }
+    .lab-hero:hover .lab-hero-detail-hint {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    .lab-hero-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .lab-hero-name {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--color-text);
+      line-height: 1.1;
+      letter-spacing: -0.015em;
+      background: linear-gradient(135deg, var(--color-text) 0%, var(--color-primary) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      color: transparent;
+      display: inline-block;
+    }
+    html.dark .lab-hero-name {
+      background: linear-gradient(135deg, var(--color-text) 0%, #6ee7a0 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      color: transparent;
+    }
+    .lab-hero-desc {
+      font-size: 0.8125rem;
+      color: var(--color-text-muted);
+      line-height: 1.55;
+      margin-top: 0.3rem;
+      max-width: 480px;
+    }
+    .lab-hero-meta-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    .lab-hero-byline {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.6875rem;
+      color: var(--color-text-muted);
+      opacity: 0.75;
+    }
+    .lab-hero-byline svg { opacity: 0.4; flex-shrink: 0; }
+    .lab-hero-byline .hero-sep { opacity: 0.35; margin: 0 0.05rem; }
+    .lab-hero-meta-dot {
+      width: 2px;
+      height: 2px;
+      border-radius: 50%;
+      background: var(--color-text-muted);
+      opacity: 0.4;
+      flex-shrink: 0;
+    }
+    .lab-hero-repo {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+      font-size: 0.6875rem;
+      font-family: var(--font-mono);
+      color: var(--color-primary);
+      text-decoration: none;
+      opacity: 0.6;
+      transition: opacity 0.2s ease;
+      letter-spacing: -0.01em;
+    }
+    .lab-hero-repo:hover { opacity: 1; text-decoration: underline; }
+    .lab-hero-repo svg { opacity: 0.45; flex-shrink: 0; }
+    .lab-hero-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      margin-top: 0.5rem;
+    }
+    .lab-hero-tag {
+      font-size: 0.5625rem;
+      font-family: var(--font-mono);
+      font-weight: 500;
+      padding: 0.1rem 0.425rem;
+      border-radius: 3px;
+      background: color-mix(in srgb, var(--color-primary) 7%, transparent);
+      color: var(--color-primary);
+      letter-spacing: 0.015em;
+      opacity: 0.7;
+      transition: opacity 0.2s ease;
+    }
+    .lab-hero:hover .lab-hero-tag { opacity: 0.9; }
+    .lab-hero-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.625rem;
+      flex-shrink: 0;
+      padding-top: 0.125rem;
+    }
+    .lab-hero-icon-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+    .lab-hero-icon-wrap img {
+      width: 38px;
+      height: 38px;
+      object-fit: contain;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--color-surface) 85%, transparent);
+      border: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+      padding: 3px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+    }
+    .lab-hero:hover .lab-hero-icon-wrap img {
+      border-color: color-mix(in srgb, var(--color-primary) 25%, transparent);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      transform: translateY(-1px);
+    }
+    .lab-hero-icon-wrap svg {
+      color: var(--color-primary);
+      opacity: 0.5;
+    }
+    .lab-hero-detail-hint {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: var(--color-primary);
+      display: flex;
+      align-items: center;
+      gap: 0.2rem;
+      flex-shrink: 0;
+      opacity: 0;
+      transform: translateX(-4px);
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 480px) {
+      .lab-hero { gap: 1rem; flex-wrap: wrap; padding: 1.25rem; }
+      .lab-hero-right { flex-direction: row; align-items: center; }
+      .lab-hero-icon-wrap { gap: 0.375rem; }
+      .lab-hero-icon-wrap img { width: 32px; height: 32px; }
+      .lab-hero-name { font-size: 1.1rem; }
+      .lab-hero-detail-hint { display: none; }
     }
 
   </style>
@@ -224,7 +427,9 @@
       <p><code>leap new my-experiment</code></p>
     </div>
 
-    <div id="experiments" class="grid"></div>
+    <div id="lab-hero" class="hidden"></div>
+
+    <div id="experiments" class="grid" style="margin-top: 1.5rem;"></div>
 
     <div id="no-results" class="no-results hidden">No experiments match your search.</div>
   </main>
@@ -250,9 +455,10 @@
           var badge = document.getElementById("lab-name-badge");
           var labName = lab.display_name || lab.name;
           if (labName) {
-            if (lab.icon) {
+            var labIcons = Array.isArray(lab.icons) ? lab.icons : (lab.icons ? [lab.icons] : []);
+            if (labIcons.length > 0) {
               var img = document.createElement("img");
-              img.src = lab.icon;
+              img.src = labIcons[0];
               img.alt = "";
               badge.appendChild(img);
             }
@@ -260,6 +466,73 @@
             badge.addEventListener("click", function () {
               if (window.LEAP && window.LEAP.showLabInfo) window.LEAP.showLabInfo(lab);
             });
+
+            // ── Lab hero masthead ──
+            var heroEl = document.getElementById("lab-hero");
+            var iconInner = labIcons.length > 0
+              ? labIcons.map(function(ic) { return '<img src="' + ic + '" alt="">'; }).join('')
+              : '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l1 7H8L9 3z"/><path d="M8 10c-1 0-3 1.5-3 5s1 5 3 6h8c2-1 3-2.5 3-6s-2-5-3-5"/><line x1="12" y1="3" x2="12" y2="1"/></svg>';
+
+            var authorStr = Array.isArray(lab.authors) ? lab.authors.join(", ") : (lab.authors || "");
+            var orgStr = Array.isArray(lab.organizations) ? lab.organizations.join(", ") : (lab.organizations || "");
+            var bylineHtml = "";
+            if (authorStr || orgStr) {
+              var parts = [];
+              if (authorStr) parts.push(authorStr);
+              if (orgStr) parts.push(orgStr);
+              bylineHtml = '<div class="lab-hero-byline">' +
+                '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' +
+                parts.join('<span class="hero-sep"> · </span>') +
+              '</div>';
+            }
+
+            var tagsHtml = "";
+            var labTags = lab.tags || [];
+            if (labTags.length > 0) {
+              tagsHtml = '<div class="lab-hero-tags">';
+              labTags.forEach(function (t) {
+                tagsHtml += '<span class="lab-hero-tag">' + t + '</span>';
+              });
+              tagsHtml += '</div>';
+            }
+
+            var repoHtml = "";
+            if (lab.repository) {
+              var shortRepo = lab.repository.replace(/^https?:\/\//, "").replace(/\.git$/, "");
+              repoHtml = '<a class="lab-hero-repo" href="' + lab.repository + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">' +
+                '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>' +
+                shortRepo + '</a>';
+            }
+
+            // Build meta row: byline · repo on same line
+            var metaRowHtml = "";
+            if (bylineHtml || repoHtml) {
+              metaRowHtml = '<div class="lab-hero-meta-row">' +
+                bylineHtml +
+                (bylineHtml && repoHtml ? '<span class="lab-hero-meta-dot"></span>' : '') +
+                repoHtml +
+              '</div>';
+            }
+
+            heroEl.innerHTML =
+              '<div class="lab-hero-info">' +
+                '<div class="lab-hero-name">' + labName + '</div>' +
+                (lab.description ? '<div class="lab-hero-desc">' + lab.description + '</div>' : '') +
+                metaRowHtml +
+                tagsHtml +
+              '</div>' +
+              '<div class="lab-hero-right">' +
+                '<div class="lab-hero-icon-wrap">' + iconInner + '</div>' +
+                '<span class="lab-hero-detail-hint">Details <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06Z"/></svg></span>' +
+              '</div>';
+            heroEl.className = "lab-hero";
+            heroEl.title = "View lab details";
+            heroEl.addEventListener("click", function () {
+              if (window.LEAP && window.LEAP.showLabInfo) window.LEAP.showLabInfo(lab);
+            });
+
+            // Hide navbar badge on landing page — hero already shows lab identity
+            badge.style.display = "none";
           }
         }
       } catch (_) {}
@@ -285,9 +558,9 @@
           card.style.animationDelay = (i * 0.07) + "s";
           card.dataset.name = (exp.display_name || exp.name).toLowerCase();
           card.dataset.desc = (exp.description || "").toLowerCase();
-          card.dataset.author = (exp.author || "").toLowerCase();
+          card.dataset.author = (Array.isArray(exp.authors) ? exp.authors.join(" ") : (exp.authors || "")).toLowerCase();
           card.dataset.tags = (exp.tags || []).join(" ").toLowerCase();
-          card.dataset.org = (exp.organization || "").toLowerCase();
+          card.dataset.org = (Array.isArray(exp.organizations) ? exp.organizations.join(" ") : (exp.organizations || "")).toLowerCase();
 
           var titleRow = document.createElement("div");
           titleRow.className = "card-title";
@@ -315,17 +588,19 @@
             card.appendChild(desc);
           }
 
-          if (exp.author) {
+          var expAuthorStr = Array.isArray(exp.authors) ? exp.authors.join(", ") : (exp.authors || "");
+          var expOrgStr = Array.isArray(exp.organizations) ? exp.organizations.join(", ") : (exp.organizations || "");
+          if (expAuthorStr) {
             var authorDiv = document.createElement("div");
             authorDiv.className = "card-author";
             authorDiv.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
             var nameSpan = document.createElement("span");
-            nameSpan.textContent = exp.author;
+            nameSpan.textContent = expAuthorStr;
             authorDiv.appendChild(nameSpan);
-            if (exp.organization) {
+            if (expOrgStr) {
               var orgSpan = document.createElement("span");
               orgSpan.className = "org";
-              orgSpan.textContent = exp.organization;
+              orgSpan.textContent = expOrgStr;
               authorDiv.appendChild(orgSpan);
             }
             card.appendChild(authorDiv);

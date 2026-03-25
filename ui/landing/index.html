@@ -261,9 +261,9 @@
           card.style.animationDelay = (i * 0.07) + "s";
           card.dataset.name = (exp.display_name || exp.name).toLowerCase();
           card.dataset.desc = (exp.description || "").toLowerCase();
-          card.dataset.author = (exp.author || "").toLowerCase();
+          card.dataset.author = (Array.isArray(exp.authors) ? exp.authors.join(" ") : (exp.authors || "")).toLowerCase();
           card.dataset.tags = (exp.tags || []).join(" ").toLowerCase();
-          card.dataset.org = (exp.organization || "").toLowerCase();
+          card.dataset.org = (Array.isArray(exp.organizations) ? exp.organizations.join(" ") : (exp.organizations || "")).toLowerCase();
 
           var titleRow = document.createElement("div");
           titleRow.className = "card-title";
@@ -291,17 +291,19 @@
             card.appendChild(desc);
           }
 
-          if (exp.author) {
+          var expAuthorStr = Array.isArray(exp.authors) ? exp.authors.join(", ") : (exp.authors || "");
+          var expOrgStr = Array.isArray(exp.organizations) ? exp.organizations.join(", ") : (exp.organizations || "");
+          if (expAuthorStr) {
             var authorDiv = document.createElement("div");
             authorDiv.className = "card-author";
             authorDiv.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
             var nameSpan = document.createElement("span");
-            nameSpan.textContent = exp.author;
+            nameSpan.textContent = expAuthorStr;
             authorDiv.appendChild(nameSpan);
-            if (exp.organization) {
+            if (expOrgStr) {
               var orgSpan = document.createElement("span");
               orgSpan.className = "org";
-              orgSpan.textContent = exp.organization;
+              orgSpan.textContent = expOrgStr;
               authorDiv.appendChild(orgSpan);
             }
             card.appendChild(authorDiv);

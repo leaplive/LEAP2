@@ -31,11 +31,20 @@ DEFAULT_FRONTMATTER = {
     "version": "",
     "entry_point": ENTRY_POINT_README,
     "require_registration": True,
-    "author": "",
-    "organization": "",
+    "authors": [],
+    "organizations": [],
     "tags": [],
     "repository": "",
 }
+
+
+def _as_list(val) -> list[str]:
+    """Coerce a frontmatter value to a list of non-empty strings."""
+    if isinstance(val, list):
+        return [str(v).strip() for v in val if str(v).strip()]
+    if val:
+        return [str(val).strip()]
+    return []
 
 
 def _parse_version(v: str) -> tuple[int, ...]:
@@ -246,8 +255,8 @@ class ExperimentInfo:
         self.require_registration = fm.get("require_registration", True)
         self.leap_version = fm.get("leap_version", "")
         self.pages = fm.get("pages", [])
-        self.author = fm.get("author", "")
-        self.organization = fm.get("organization", "")
+        self.authors = _as_list(fm.get("authors", fm.get("author", [])))
+        self.organizations = _as_list(fm.get("organizations", fm.get("organization", [])))
         self.tags = fm.get("tags", [])
         self.repository = fm.get("repository", "")
         self.version_ok, self.version_message = check_leap_version(self.leap_version)
@@ -277,8 +286,8 @@ class ExperimentInfo:
             "leap_version": self.leap_version,
             "leap_version_ok": self.version_ok,
             "pages": self.pages,
-            "author": self.author,
-            "organization": self.organization,
+            "authors": self.authors,
+            "organizations": self.organizations,
             "tags": self.tags,
             "repository": self.repository,
         }

@@ -49,6 +49,15 @@ def _parse_tags(raw: str) -> list[str]:
     return [t.strip() for t in raw.split(",") if t.strip()] if raw else []
 
 
+def _yaml_str_or_list(val: list[str] | str) -> str:
+    """Format a value as YAML inline: single string or [a, b] list."""
+    if isinstance(val, list):
+        if len(val) == 1:
+            return val[0]
+        return "[" + ", ".join(val) + "]"
+    return str(val)
+
+
 def _shorten_repo_url(url: str) -> str:
     """Strip scheme prefix and .git suffix for display."""
     for prefix in ("https://", "git@"):
@@ -276,11 +285,13 @@ def _prompt_lab_metadata(slug: str) -> dict[str, str | list[str]]:
     typer.echo()
 
     typer.echo("  Who created this lab — shown on the landing page.")
-    author = typer.prompt("  Author (optional)", default="").strip()
+    authors_raw = typer.prompt("  Author(s) (comma-separated, optional)", default="").strip()
+    authors = [a.strip() for a in authors_raw.split(",") if a.strip()] if authors_raw else []
     typer.echo()
 
     typer.echo("  Your university, company, or group.")
-    organization = typer.prompt("  Organization (optional)", default="").strip()
+    orgs_raw = typer.prompt("  Organization(s) (comma-separated, optional)", default="").strip()
+    organizations = [o.strip() for o in orgs_raw.split(",") if o.strip()] if orgs_raw else []
     typer.echo()
 
     typer.echo("  Keywords to help others discover this lab, e.g. algorithms, intro-cs.")
@@ -290,8 +301,8 @@ def _prompt_lab_metadata(slug: str) -> dict[str, str | list[str]]:
         "name": name or slug,
         "display_name": display_name,
         "description": description,
-        "author": author,
-        "organization": organization,
+        "authors": authors,
+        "organizations": organizations,
         "tags": tags,
     }
 
@@ -306,16 +317,16 @@ def _ensure_lab_root_readme(cwd: Path, meta: dict | None = None) -> str:
         slug = "my-lab"
 
     if not readme.is_file():
-        m = meta or {"name": slug, "display_name": "", "description": "", "author": "", "organization": "", "tags": []}
+        m = meta or {"name": slug, "display_name": "", "description": "", "authors": [], "organizations": [], "tags": []}
         tags_yaml = f" [{', '.join(m['tags'])}]" if m.get("tags") else " []"
-        author_line = f"author: {m['author']}\n" if m.get("author") else ""
-        org_line = f"organization: {m['organization']}\n" if m.get("organization") else ""
+        authors_line = f"authors: {_yaml_str_or_list(m['authors'])}\n" if m.get("authors") else ""
+        orgs_line = f"organizations: {_yaml_str_or_list(m['organizations'])}\n" if m.get("organizations") else ""
         readme.write_text(
             f"---\nname: {m['name']}\ntype: lab\n"
             f"display_name: \"{m['display_name']}\"\n"
             f"description: \"{m['description']}\"\n"
-            f"{author_line}"
-            f"{org_line}"
+            f"{authors_line}"
+            f"{orgs_line}"
             f"tags:{tags_yaml}\n"
             f"experiments: []\n---\n\n"
             f"# {m.get('display_name') or cwd.name}\n\n"
@@ -446,8 +457,8 @@ def init_fn(
             optional_fields = {
                 "display_name": ("Display name", "A human-readable name shown on the landing page."),
                 "description": ("Description", "A short description of what this lab contains."),
-                "author": ("Author", "Who created this lab — shown on the landing page."),
-                "organization": ("Organization", "Your university, company, or group."),
+                "authors": ("Author(s)", "Who created this lab — shown on the landing page."),
+                "organizations": ("Organization(s)", "Your university, company, or group."),
                 "tags": ("Tags (comma-separated)", "Keywords to help others discover this lab."),
             }
             updated = False
@@ -526,8 +537,8 @@ def _prompt_experiment_metadata(name: str, interactive: bool = True) -> dict:
         return {
             "display_name": default_display,
             "description": "",
-            "author": "",
-            "organization": "",
+            "authors": [],
+            "organizations": [],
             "tags": [],
             "require_registration": True,
             "entry_point": "dashboard.html",
@@ -546,11 +557,13 @@ def _prompt_experiment_metadata(name: str, interactive: bool = True) -> dict:
     typer.echo()
 
     typer.echo("  Who created this experiment — shown on the landing page.")
-    author = typer.prompt("  Author").strip()
+    authors_raw = typer.prompt("  Author(s) (comma-separated)").strip()
+    authors = [a.strip() for a in authors_raw.split(",") if a.strip()] if authors_raw else []
     typer.echo()
 
     typer.echo("  Your university, company, or group (optional).")
-    organization = typer.prompt("  Organization", default="").strip()
+    orgs_raw = typer.prompt("  Organization(s) (comma-separated)", default="").strip()
+    organizations = [o.strip() for o in orgs_raw.split(",") if o.strip()] if orgs_raw else []
     typer.echo()
 
     typer.echo("  Keywords to help others find this experiment, e.g. algorithms, graphs, BFS.")
@@ -569,8 +582,8 @@ def _prompt_experiment_metadata(name: str, interactive: bool = True) -> dict:
     meta = {
         "display_name": display_name,
         "description": description,
-        "author": author,
-        "organization": organization,
+        "authors": authors,
+        "organizations": organizations,
         "tags": tags,
         "require_registration": require_reg,
         "entry_point": entry_point,
@@ -581,8 +594,8 @@ def _prompt_experiment_metadata(name: str, interactive: bool = True) -> dict:
     typer.echo(f"    Name:          {name}")
     typer.echo(f"    Display name:  {meta['display_name']}")
     typer.echo(f"    Description:   {meta['description']}")
-    typer.echo(f"    Author:        {meta['author']}")
-    typer.echo(f"    Organization:  {meta['organization'] or '(none)'}")
+    typer.echo(f"    Authors:       {', '.join(meta['authors']) if meta['authors'] else '(none)'}")
+    typer.echo(f"    Organizations: {', '.join(meta['organizations']) if meta['organizations'] else '(none)'}")
     typer.echo(f"    Tags:          {', '.join(meta['tags']) if meta['tags'] else '(none)'}")
     typer.echo(f"    Registration:  {'required' if meta['require_registration'] else 'not required'}")
     typer.echo(f"    Entry point:   {meta['entry_point']}")
@@ -620,8 +633,8 @@ def new_experiment_fn(name: str, root: Path | None = None, interactive: bool = T
     readme.write_text(
         f"---\nname: {name}\ntype: experiment\ndisplay_name: {meta['display_name']}\n"
         f"description: \"{meta['description']}\"\n"
-        f"author: \"{meta['author']}\"\n"
-        f"organization: \"{meta['organization']}\"\n"
+        f"authors: {_yaml_str_or_list(meta['authors'])}\n"
+        f"organizations: {_yaml_str_or_list(meta['organizations'])}\n"
         f"tags:{tags_yaml}\n"
         f"repository: \"{remote_url}\"\n"
         f"entry_point: {meta['entry_point']}\n"
@@ -1395,7 +1408,7 @@ def publish_fn(
         "type": entry_type,
         "display_name": fm.get("display_name", "") or name,
         "description": description,
-        "author": fm.get("author", ""),
+        "authors": fm.get("authors", fm.get("author", [])),
         "repository": repository,
         "tags": fm.get("tags", []),
     }
@@ -1451,8 +1464,10 @@ def init_command(
 ):
     """Initialize the current directory as a LEAP lab root."""
     from rich.console import Console
-    from rich.table import Table
+    from rich.panel import Panel
     from rich.text import Text
+
+    console = Console()
 
     try:
         results = init_fn(force_password=password, skip_password=skip_password)
@@ -1460,65 +1475,67 @@ def init_command(
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1)
 
-    console = Console()
+    console.print()
 
-    # Structure table
-    table = Table(title="LEAP lab initialized", show_header=True, header_style="bold")
-    table.add_column("Item", style="cyan", no_wrap=True)
-    table.add_column("Status", justify="center", width=10)
-
-    # Directories and files
-    dir_keys = ["experiments", "config"]
-    file_keys = [".gitignore"]
-    for key in dir_keys + file_keys:
-        status = results.get(key, "")
+    def _icon(status: str) -> Text:
         if status == "created":
-            table.add_row(key, Text("created", style="green"))
-        elif status in ("exists", "updated"):
-            table.add_row(key, Text(status, style="dim"))
+            return Text("\u2713 created", style="green")
+        if status == "updated":
+            return Text("\u2713 updated", style="yellow")
+        if status == "set":
+            return Text("\u2713 set", style="green")
+        if status == "skipped":
+            return Text("- skipped", style="yellow")
+        return Text("\u2022 exists", style="dim")
 
-    # README
+    # ── Structure items ──
+    items = []
+    for key in ["experiments", "config", ".gitignore"]:
+        status = results.get(key, "")
+        if status:
+            items.append((key, status))
+
     readme_status = results.get("readme", "")
-    if readme_status == "created":
-        table.add_row("README.md", Text("created", style="green"))
-    elif readme_status == "updated":
-        table.add_row("README.md", Text("updated", style="yellow"))
-    elif readme_status == "skipped":
-        table.add_row("README.md", Text("exists", style="dim"))
+    if readme_status:
+        items.append(("README.md", "exists" if readme_status == "skipped" else readme_status))
 
-    # Repository
     if results.get("repository"):
-        table.add_row("repository", Text(results["repository"], style="green"))
+        items.append(("repository", "created"))
 
-    # Experiments synced
     if results.get("experiments_synced"):
-        table.add_row("experiments synced", Text(results["experiments_synced"], style="green"))
+        items.append((f"experiments synced ({results['experiments_synced']})", "updated"))
 
-    # Dependencies installed
     if results.get("deps_installed"):
-        table.add_row("deps installed", Text(results["deps_installed"], style="green"))
+        items.append((f"dependencies ({results['deps_installed']})", "created"))
 
-    # Reinstalled experiments
     if results.get("experiments_reinstalled"):
-        table.add_row("reinstalled", Text(results["experiments_reinstalled"], style="green"))
+        items.append((f"reinstalled ({results['experiments_reinstalled']})", "created"))
 
-    # Password
     pw = results.get("password", "")
-    if pw == "set":
-        table.add_row("password", Text("set", style="green"))
-    elif pw == "exists":
-        table.add_row("password", Text("exists", style="dim"))
-    elif pw == "skipped":
-        table.add_row("password", Text("skipped", style="yellow"))
+    if pw:
+        items.append(("password", pw))
 
-    console.print(table)
+    # ── Print as a checklist ──
+    lines = []
+    for label, status in items:
+        icon = _icon(status)
+        lines.append(f"  {icon}  [cyan]{label}[/cyan]" if status in ("created", "set") else f"  {icon}  {label}")
+
+    # Use direct prints for the checklist
+    for line in lines:
+        console.print(line)
+
+    console.print()
 
     if pw == "skipped":
-        console.print(
-            "\n[yellow]Set ADMIN_PASSWORD or run `leap set-password` before serving.[/yellow]"
-        )
+        console.print("  [yellow]Set ADMIN_PASSWORD or run `leap set-password` before serving.[/yellow]")
+        console.print()
 
-    console.print(f"\n[bold green]Ready![/bold green] Run [cyan]leap run[/cyan] to start the server.")
+    console.print(Panel(
+        "[bold green]Ready![/bold green]  Run [cyan]leap run[/cyan] to start the server.",
+        border_style="green",
+        padding=(0, 2),
+    ))
 
 
 @app.command()
@@ -1526,6 +1543,7 @@ def run(
     host: str = typer.Option("0.0.0.0", help="Bind address"),
     port: int = typer.Option(9000, help="Port"),
     root: Optional[Path] = typer.Option(None, help="Project root override"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable request access logs"),
 ):
     """Start the LEAP2 server."""
     import uvicorn
@@ -1549,9 +1567,94 @@ def run(
         )
         raise typer.Exit(1)
 
+    import logging as _logging
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.text import Text
+    from leap.core.experiment import discover_experiments, parse_frontmatter
+
+    console = Console()
+
+    # ── Banner ──
+    console.print()
+    console.print(Panel(
+        f"[bold]LEAP2[/bold]  [dim]v{__version__}[/dim]",
+        subtitle=f"[dim]{resolved}[/dim]",
+        border_style="bright_blue",
+        padding=(0, 2),
+    ))
+
+    # ── Lab metadata ──
+    root_readme = resolved / "README.md"
+    if root_readme.is_file():
+        fm = parse_frontmatter(root_readme)
+        lab_name = fm.get("display_name") or fm.get("name") or resolved.name
+        lab_desc = fm.get("description", "")
+        if lab_name:
+            line = f"  [bold]{lab_name}[/bold]"
+            if lab_desc:
+                line += f"  [dim]—[/dim]  [dim]{lab_desc}[/dim]"
+            console.print(line)
+            console.print()
+
+    # ── Discover experiments (suppress logger since we print a rich table) ──
+    _exp_logger = _logging.getLogger("leap.core.experiment")
+    _prev_level = _exp_logger.level
+    _exp_logger.setLevel(_logging.WARNING)
+    exps = discover_experiments(resolved)
+    _exp_logger.setLevel(_prev_level)
+
+    if exps:
+        table = Table(
+            show_header=True,
+            header_style="bold",
+            border_style="dim",
+            padding=(0, 1),
+            title="Experiments",
+            title_style="bold",
+        )
+        table.add_column("", width=2, no_wrap=True)
+        table.add_column("Name", style="cyan", no_wrap=True)
+        table.add_column("Funcs", justify="right")
+        table.add_column("UI", justify="center", width=3)
+        table.add_column("Description", max_width=44, overflow="ellipsis")
+
+        for name, info in exps.items():
+            fn_count = len(info.functions)
+            has_ui = info.ui_dir.is_dir() and any(info.ui_dir.iterdir())
+            desc = info.description or ""
+            table.add_row(
+                Text("\u2713", style="green"),
+                info.display_name if info.display_name != name else name,
+                str(fn_count),
+                Text("\u2713", style="green") if has_ui else Text("\u2014", style="dim"),
+                Text(desc, style="dim") if desc else Text("\u2014", style="dim"),
+            )
+
+        console.print(table)
+    else:
+        console.print("  [yellow]No experiments found.[/yellow] Add one with [cyan]leap new[/cyan] or [cyan]leap install[/cyan].")
+
+    # ── Server start ──
+    console.print()
+    console.print(f"  [bold green]\u25b6[/bold green]  [bold]http://{host}:{port}[/bold]  [dim]Press Ctrl+C to stop[/dim]")
+    console.print()
+
+    # Suppress duplicate discovery logs from create_app lifespan
+    _main_logger = _logging.getLogger("leap.main")
+    _main_logger.setLevel(_logging.WARNING)
+    _exp_logger.setLevel(_logging.WARNING)
+
     the_app = create_app(root=resolved)
-    typer.echo(f"Starting LEAP2 on {host}:{port} (root: {resolved})")
-    uvicorn.run(the_app, host=host, port=port)
+    uvicorn.run(
+        the_app,
+        host=host,
+        port=port,
+        access_log=verbose,
+        loop="uvloop",
+        http="httptools",
+    )
 
 
 @app.command()
@@ -2082,7 +2185,9 @@ def publish(
     table.add_row("name", Text(name, style="bold"))
     table.add_row("type", Text(entry_type))
     table.add_row("description", Text(fm.get("description", "") or "(missing)", style="" if fm.get("description") else "red"))
-    table.add_row("author", Text(fm.get("author", "") or "(none)", style="" if fm.get("author") else "dim"))
+    _authors = fm.get("authors", fm.get("author", []))
+    _authors_str = ", ".join(_authors) if isinstance(_authors, list) else (_authors or "")
+    table.add_row("authors", Text(_authors_str or "(none)", style="" if _authors_str else "dim"))
     tags = ", ".join(fm.get("tags", []))
     table.add_row("tags", Text(tags or "(none)", style="" if tags else "dim"))
     repo = fm.get("repository", "")

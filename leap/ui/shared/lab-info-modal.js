@@ -87,9 +87,13 @@
         '</div>';
     }
 
-    var iconHtml = lab.icon
-      ? '<div class="lab-info-icon"><img src="' + lab.icon + '" alt="" style="max-width:48px;max-height:48px;object-fit:contain;border-radius:6px;"></div>'
+    var labIcons = Array.isArray(lab.icons) ? lab.icons : (lab.icons ? [lab.icons] : []);
+    var iconHtml = labIcons.length > 0
+      ? '<div class="lab-info-icon" style="display:flex;gap:0.5rem;align-items:center;">' + labIcons.map(function(ic) { return '<img src="' + ic + '" alt="" style="max-width:48px;max-height:48px;object-fit:contain;border-radius:6px;">'; }).join('') + '</div>'
       : '<div class="lab-info-icon">' + infoSvg + '</div>';
+
+    var authorsStr = Array.isArray(lab.authors) ? lab.authors.join(", ") : (lab.authors || "");
+    var orgsStr = Array.isArray(lab.organizations) ? lab.organizations.join(", ") : (lab.organizations || "");
 
     modal.innerHTML =
       '<button class="lab-info-close" aria-label="Close">' + closeSvg + '</button>' +
@@ -97,8 +101,8 @@
       '<div class="lab-info-title">' + title + '</div>' +
       (lab.description ? '<div class="lab-info-desc">' + lab.description + '</div>' : '') +
       '<div>' +
-      row("Author", lab.author) +
-      row("Organization", lab.organization) +
+      row("Authors", authorsStr) +
+      row("Organizations", orgsStr) +
       row("Repository", repoHtml) +
       (tagsHtml ? '<div class="lab-info-row"><span class="lab-info-label">Tags</span><span class="lab-info-value">' + tagsHtml + '</span></div>' : '') +
       '</div>';

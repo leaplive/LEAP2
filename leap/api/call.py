@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
-from leap.api.deps import get_db_session, get_experiment_info
+from leap.api.deps import get_experiment_info
 from leap.core import rpc
 from leap.core.experiment import ExperimentInfo
 
@@ -30,16 +30,15 @@ async def call_function(
     body: CallRequest,
     request: Request,
     exp_info: ExperimentInfo = Depends(get_experiment_info),
-    session: Session = Depends(get_db_session),
 ):
     func = exp_info.functions.get(body.func_name)
     if func and getattr(func, "_leap_adminonly", False):
         if not request.session.get("admin", False):
             raise HTTPException(403, detail="Admin access required")
     try:
-        result = rpc.execute_rpc(
+        result = await asyncio.to_thread(
+            rpc.execute_rpc,
             exp_info,
-            session,
             func_name=body.func_name,
             args=body.args,
             kwargs=body.kwargs,

@@ -59,11 +59,15 @@ def create_app(root=None) -> FastAPI:
             app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="project-assets")
             logger.info("Mounted /assets -> %s", assets_dir)
 
-        _LAB_FIELDS = {"name": "", "display_name": "", "icon": "", "description": "", "author": "", "organization": "", "tags": [], "repository": ""}
+        _LAB_FIELDS = {"name": "", "display_name": "", "icons": [], "description": "", "authors": [], "organizations": [], "tags": [], "repository": ""}
         root_readme = resolved_root / "README.md"
         fm = parse_frontmatter(root_readme) if root_readme.is_file() else {}
         lab_info = {k: fm.get(k, default) for k, default in _LAB_FIELDS.items()}
         lab_info["display_name"] = lab_info["display_name"] or lab_info["name"]
+        # Normalize list fields (accept both string and array in YAML)
+        from leap.core.experiment import _as_list
+        for k in ("authors", "organizations", "icons"):
+            lab_info[k] = _as_list(lab_info.get(k, fm.get(k[:-1], [])))
         app.state.lab_info = lab_info
 
         app.state.ui_root = ui_dir(resolved_root)

@@ -19,7 +19,7 @@ SAMPLE_REGISTRY = [
         "name": "gradient-descent",
         "display_name": "Gradient Descent Lab",
         "description": "2D gradient descent visualization",
-        "author": "sampad",
+        "authors": "sampad",
         "repository": "https://github.com/someone/gradient-descent",
         "tags": ["optimization", "ml"],
     },
@@ -27,7 +27,7 @@ SAMPLE_REGISTRY = [
         "name": "graph-search",
         "display_name": "Graph Search Lab",
         "description": "BFS/DFS exploration on grids",
-        "author": "neveisa",
+        "authors": "neveisa",
         "repository": "https://github.com/someone/graph-search",
         "tags": ["algorithms", "graphs"],
     },
@@ -37,7 +37,7 @@ SAMPLE_YAML = """\
 - name: gradient-descent
   display_name: Gradient Descent Lab
   description: 2D gradient descent visualization
-  author: sampad
+  authors: sampad
   repository: https://github.com/someone/gradient-descent
   tags:
     - optimization
@@ -46,7 +46,7 @@ SAMPLE_YAML = """\
 - name: graph-search
   display_name: Graph Search Lab
   description: BFS/DFS exploration on grids
-  author: neveisa
+  authors: neveisa
   repository: https://github.com/someone/graph-search
   tags:
     - algorithms
@@ -128,7 +128,7 @@ class TestDiscoverCommand:
 
 class TestPublishExperimentFn:
     def _make_experiment(self, tmp_root, description="Test experiment",
-                         repository="", author="tester", tags=None):
+                         repository="", authors="tester", tags=None):
         """Helper to create an experiment with specific frontmatter."""
         exp_path = tmp_root / "experiments" / "default"
         readme = exp_path / "README.md"
@@ -136,7 +136,7 @@ class TestPublishExperimentFn:
         readme.write_text(
             f"---\nname: default\ndisplay_name: Test Lab\n"
             f'description: "{description}"\n'
-            f'author: "{author}"\n'
+            f'authors: "{authors}"\n'
             f'repository: "{repository}"\n'
             f"tags:{tags_yaml}\n"
             f"---\n\n# Test\n",
@@ -271,7 +271,7 @@ class TestPublishCommand:
         readme.write_text(
             f"---\nname: default\ndisplay_name: Test Lab\n"
             f'description: "A test lab"\n'
-            f'author: "tester"\n'
+            f'authors: "tester"\n'
             f'repository: "{repository}"\n'
             f"tags: [test]\n"
             f"---\n\n# Test\n",
@@ -324,13 +324,13 @@ class TestPublishLabFn:
     """Tests for publishing a lab (no experiment argument)."""
 
     def _make_lab_readme(self, tmp_root, name="mylab", description="A test lab",
-                         repository="", author="tester", tags=None):
+                         repository="", authors="tester", tags=None):
         readme = tmp_root / "README.md"
         tags_yaml = f" [{', '.join(tags)}]" if tags else " []"
         readme.write_text(
             f"---\nname: {name}\ntype: lab\ndisplay_name: My Lab\n"
             f'description: "{description}"\n'
-            f'author: "{author}"\n'
+            f'authors: "{authors}"\n'
             f'repository: "{repository}"\n'
             f"tags:{tags_yaml}\n"
             f"experiments:\n  - name: default\n"
@@ -405,7 +405,7 @@ class TestPublishLabCommand:
         readme.write_text(
             f"---\nname: mylab\ntype: lab\ndisplay_name: My Lab\n"
             f'description: "A test lab"\n'
-            f'author: "tester"\n'
+            f'authors: "tester"\n'
             f'repository: "{repository}"\n'
             f"tags: [test]\n"
             f"experiments:\n  - name: default\n"

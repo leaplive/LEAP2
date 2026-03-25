@@ -9,6 +9,16 @@
   <script>(function(){var t=localStorage.getItem("leap-theme");if(t==="dark"||(!t&&matchMedia("(prefers-color-scheme:dark)").matches))document.documentElement.classList.add("dark")})()</script>
   <link rel="stylesheet" href="/static/theme.css">
   <script src="/static/theme-toggle.js" defer></script>
+  <style>
+    tr.deleting td {
+      opacity: 0 !important;
+      transform: translateX(-10px);
+      transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    tr.deleting {
+      pointer-events: none;
+    }
+  </style>
 </head>
 <body data-page="logs">
   <a class="skip-to-content" href="#main">Skip to content</a>
@@ -249,13 +259,18 @@
             }).then(function (res) {
               if (res.ok) {
                 var row = document.querySelector("#log-body tr[data-log-id='" + id + "']");
-                if (row) row.remove();
-                var count = bodyEl.querySelectorAll("tr").length;
-                statusEl.textContent = count + " entr" + (count === 1 ? "y" : "ies");
-                if (count === 0) {
-                  tableEl.classList.add("hidden");
-                  emptyEl.classList.remove("hidden");
-                  sparkEl.innerHTML = "";
+                if (row) {
+                  row.classList.add("deleting");
+                  setTimeout(function() {
+                    row.remove();
+                    var count = bodyEl.querySelectorAll("tr").length;
+                    statusEl.textContent = count + " entr" + (count === 1 ? "y" : "ies");
+                    if (count === 0) {
+                      tableEl.classList.add("hidden");
+                      emptyEl.classList.remove("hidden");
+                      sparkEl.innerHTML = "";
+                    }
+                  }, 300);
                 }
               } else {
                 res.json().then(function (data) {
@@ -300,18 +315,21 @@
     function updateClearBtn() {
       if (isAdmin) clearLogsBtn.classList.remove("hidden");
       else clearLogsBtn.classList.add("hidden");
-      // Update label based on trial filter
-      var hasFilter = trialSel.value || funcSel.value;
+      // Update label based on active filters
+      var hasFilter = studentSel.value || trialSel.value || funcSel.value;
       clearLogsBtn.textContent = hasFilter ? "Clear Filtered Logs" : "Clear All Logs";
     }
 
+    studentSel.addEventListener("change", updateClearBtn);
     trialSel.addEventListener("change", updateClearBtn);
     funcSel.addEventListener("change", updateClearBtn);
 
     clearLogsBtn.addEventListener("click", function () {
+      var student = studentSel.value;
       var trial = trialSel.value;
       var func = funcSel.value;
       var parts = [];
+      if (student) parts.push("student \"" + student + "\"");
       if (trial) parts.push("trial \"" + trial + "\"");
       if (func) parts.push("function \"" + func + "\"");
       var msg = parts.length
@@ -319,6 +337,7 @@
         : "Delete ALL logs for this experiment? This cannot be undone.";
       if (!confirm(msg)) return;
       var body = {};
+      if (student) body.student_id = student;
       if (trial) body.trial = trial;
       if (func) body.func_name = func;
       var url = (window.location.origin || "") + "/exp/" + expName + "/admin/delete-logs";

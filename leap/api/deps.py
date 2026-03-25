@@ -19,7 +19,7 @@ limiter = Limiter(
 )
 
 
-def get_experiment_info(experiment: str, request: Request) -> ExperimentInfo:
+async def get_experiment_info(experiment: str, request: Request) -> ExperimentInfo:
     experiments = request.app.state.experiments
     if experiment not in experiments:
         raise HTTPException(404, detail=f"Experiment '{experiment}' not found")

@@ -66,6 +66,8 @@ body::before {
   background-image: radial-gradient(circle, var(--color-border) 0.5px, transparent 0.5px);
   background-size: 24px 24px;
   opacity: 0.4;
+  -webkit-mask-image: linear-gradient(to bottom, black 30%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 30%, transparent 100%);
   pointer-events: none;
   z-index: 0;
 }

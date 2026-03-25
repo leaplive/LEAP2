@@ -1,6 +1,8 @@
 """LEAP2 - Live Experiments for Active Pedagogy."""
 
-__version__ = "1.0.0"
+from importlib.metadata import version as _pkg_version
+
+__version__ = _pkg_version("leap")
 
 from leap.core.rpc import adminonly, ctx, nolog, noregcheck, ratelimit, withctx
 

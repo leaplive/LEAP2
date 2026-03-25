@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -64,6 +65,7 @@ class Log(Base):
 
 _engines: dict[str, Any] = {}
 _session_factories: dict[str, sessionmaker] = {}
+_engine_lock = threading.Lock()
 
 _CREATE_INDEXES = [
     "CREATE INDEX IF NOT EXISTS ix_logs_ts ON logs (ts)",
@@ -80,16 +82,19 @@ def _db_url(db_path: Path) -> str:
 
 def get_engine(experiment_name: str, db_path: Path):
     key = str(db_path)
-    if key not in _engines:
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        engine = create_engine(_db_url(db_path))
-        Base.metadata.create_all(engine)
-        with engine.connect() as conn:
-            for idx_sql in _CREATE_INDEXES:
-                conn.execute(text(idx_sql))
-            conn.commit()
-        _engines[key] = engine
-        logger.info("Initialized DB for experiment '%s' at %s", experiment_name, db_path)
+    if key in _engines:
+        return _engines[key]
+    with _engine_lock:
+        if key not in _engines:
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            engine = create_engine(_db_url(db_path))
+            Base.metadata.create_all(engine)
+            with engine.connect() as conn:
+                for idx_sql in _CREATE_INDEXES:
+                    conn.execute(text(idx_sql))
+                conn.commit()
+            _engines[key] = engine
+            logger.info("Initialized DB for experiment '%s' at %s", experiment_name, db_path)
     return _engines[key]
 
 
@@ -97,7 +102,9 @@ def get_session(experiment_name: str, db_path: Path) -> Session:
     key = str(db_path)
     if key not in _session_factories:
         engine = get_engine(experiment_name, db_path)
-        _session_factories[key] = sessionmaker(bind=engine)
+        with _engine_lock:
+            if key not in _session_factories:
+                _session_factories[key] = sessionmaker(bind=engine)
     return _session_factories[key]()
 
 

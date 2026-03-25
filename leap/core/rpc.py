@@ -7,7 +7,7 @@ import logging
 import os
 import re
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass
 from typing import Any
 
@@ -32,7 +32,7 @@ class RateLimitError(Exception):
     """Raised when a per-function rate limit is exceeded."""
 
 
-_rate_windows: dict[tuple, list[float]] = defaultdict(list)
+_rate_windows: dict[tuple, deque[float]] = defaultdict(deque)
 _PERIODS = {"second": 1, "minute": 60, "hour": 3600, "day": 86400}
 _parsed_limits: dict[str, tuple[int, int]] = {}
 _SWEEP_INTERVAL = 300  # seconds between stale key sweeps
@@ -63,10 +63,11 @@ def _check_rate_limit(key: tuple, limit_str: str) -> bool:
 
     timestamps = _rate_windows[key]
     cutoff = now - window
-    _rate_windows[key] = [t for t in timestamps if t > cutoff]
-    if len(_rate_windows[key]) >= max_calls:
+    while timestamps and timestamps[0] <= cutoff:
+        timestamps.popleft()
+    if len(timestamps) >= max_calls:
         return False
-    _rate_windows[key].append(now)
+    timestamps.append(now)
     return True
 
 
@@ -122,9 +123,17 @@ def validate_student_id(student_id: str) -> bool:
     return bool(STUDENT_ID_RE.match(student_id))
 
 
+def is_lightweight(func, experiment) -> bool:
+    """True if the function skips all DB operations (no logging, no reg check, no rate limit)."""
+    return (
+        _has_flag(func, "_leap_nolog")
+        and (_has_flag(func, "_leap_noregcheck") or not experiment.require_registration)
+    )
+
+
 def execute_rpc(
     experiment,  # ExperimentInfo
-    session: storage.Session,
+    session=None,
     *,
     func_name: str,
     args: list | None = None,
@@ -141,52 +150,66 @@ def execute_rpc(
     if not validate_student_id(student_id):
         raise ValueError(f"Invalid student_id: '{student_id}'")
 
+    # Lazy DB session — only create when the function actually needs it
     skip_regcheck = _has_flag(func, "_leap_noregcheck")
-    if not skip_regcheck and experiment.require_registration:
-        if not storage.is_registered(session, student_id):
-            raise PermissionError(f"Student '{student_id}' is not registered")
-
-    env_limit = os.environ.get("LEAP_RATE_LIMIT")
-    if env_limit != "0":
-        limit_val = getattr(func, "_leap_ratelimit", "default")
-        if limit_val == "default":
-            limit_val = DEFAULT_RATE_LIMIT
-        if limit_val:
-            key = (experiment.name, func_name, student_id)
-            if not _check_rate_limit(key, limit_val):
-                raise RateLimitError(f"Rate limit exceeded for '{func_name}': {limit_val}")
-
-    args = args or []
-    kwargs = kwargs or {}
-    error_msg = None
-    result = None
-
-    if _has_flag(func, "_leap_withctx"):
-        _ctx_var.set(Context(student_id=student_id, trial=trial, experiment=experiment.name))
+    skip_log = _has_flag(func, "_leap_nolog")
+    needs_db = (
+        (not skip_regcheck and experiment.require_registration)
+        or not skip_log
+    )
+    own_session = False
+    if needs_db and session is None:
+        session = storage.get_session(experiment.name, experiment.db_path)
+        own_session = True
 
     try:
-        result = func(*args, **kwargs)
-    except Exception as e:
-        error_msg = f"{type(e).__name__}: {e}"
-        logger.exception("RPC %s.%s raised: %s", experiment.name, func_name, error_msg)
+        if not skip_regcheck and experiment.require_registration:
+            if not storage.is_registered(session, student_id):
+                raise PermissionError(f"Student '{student_id}' is not registered")
 
-    skip_log = _has_flag(func, "_leap_nolog")
-    if not skip_log:
+        env_limit = os.environ.get("LEAP_RATE_LIMIT")
+        if env_limit != "0":
+            limit_val = getattr(func, "_leap_ratelimit", "default")
+            if limit_val == "default":
+                limit_val = DEFAULT_RATE_LIMIT
+            if limit_val:
+                key = (experiment.name, func_name, student_id)
+                if not _check_rate_limit(key, limit_val):
+                    raise RateLimitError(f"Rate limit exceeded for '{func_name}': {limit_val}")
+
+        args = args or []
+        kwargs = kwargs or {}
+        error_msg = None
+        result = None
+
+        if _has_flag(func, "_leap_withctx"):
+            _ctx_var.set(Context(student_id=student_id, trial=trial, experiment=experiment.name))
+
         try:
-            storage.add_log(
-                session,
-                student_id=student_id,
-                experiment=experiment.name,
-                func_name=func_name,
-                args=args,
-                result=result,
-                error=error_msg,
-                trial=trial,
-            )
-        except Exception:
-            logger.exception("Failed to log RPC call %s.%s", experiment.name, func_name)
+            result = func(*args, **kwargs)
+        except Exception as e:
+            error_msg = f"{type(e).__name__}: {e}"
+            logger.exception("RPC %s.%s raised: %s", experiment.name, func_name, error_msg)
 
-    if error_msg:
-        raise RuntimeError(error_msg)
+        if not skip_log:
+            try:
+                storage.add_log(
+                    session,
+                    student_id=student_id,
+                    experiment=experiment.name,
+                    func_name=func_name,
+                    args=args,
+                    result=result,
+                    error=error_msg,
+                    trial=trial,
+                )
+            except Exception:
+                logger.exception("Failed to log RPC call %s.%s", experiment.name, func_name)
 
-    return result
+        if error_msg:
+            raise RuntimeError(error_msg)
+
+        return result
+    finally:
+        if own_session and session is not None:
+            session.close()

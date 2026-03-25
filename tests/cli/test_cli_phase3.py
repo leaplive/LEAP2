@@ -438,7 +438,7 @@ class TestCopyExperimentFn:
         (src / "README.md").write_text(
             f"---\nname: {name}\ntype: {exp_type}\n"
             f"display_name: Cool Viz\ndescription: A cool experiment\n"
-            f"author: someone\ntags: [viz]\n---\n\n# {name}\n",
+            f"authors: someone\ntags: [viz]\n---\n\n# {name}\n",
             encoding="utf-8",
         )
         (src / "funcs").mkdir()
@@ -514,7 +514,7 @@ class TestCopyCommand:
         (src / "README.md").write_text(
             "---\nname: viz-exp\ntype: experiment\n"
             "display_name: Viz Exp\ndescription: A viz experiment\n"
-            "author: someone\ntags: [viz]\n---\n\n# viz-exp\n",
+            "authors: someone\ntags: [viz]\n---\n\n# viz-exp\n",
             encoding="utf-8",
         )
         (src / "funcs").mkdir()

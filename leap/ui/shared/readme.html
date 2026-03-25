@@ -183,15 +183,26 @@
       user-select: none;
       font-size: 0.8em;
     }
-    .markdown-body code { font-size: 0.875em; }
+    .markdown-body p code, .markdown-body li code {
+      background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+      color: var(--color-text);
+      border: 1px solid color-mix(in srgb, var(--color-primary) 12%, transparent);
+      padding: 0.15em 0.3em;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
     .markdown-body blockquote {
-      border-left: 3px solid var(--color-primary-light);
-      background: color-mix(in srgb, var(--color-primary) 5%, transparent);
-      border-radius: 0 var(--radius) var(--radius) 0;
-      padding: 0.75rem 1.25rem;
-      margin: 0 0 1.25rem;
+      border-left: 3px solid var(--color-primary);
+      background: color-mix(in srgb, var(--color-surface) 70%, transparent);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.02) inset;
+      border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+      padding: 1rem 1.5rem;
+      margin: 1.5rem 0;
       color: var(--color-text-muted);
       font-style: italic;
+      font-size: 1.05em;
     }
     .markdown-body hr { border: none; border-top: 1px solid var(--color-border); margin: 2rem 0; }
     .markdown-body img { max-width: 100%; border-radius: var(--radius); }
