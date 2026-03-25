@@ -1622,7 +1622,7 @@ def run(
             body = "\n".join(lab_lines) if lab_lines else ""
             console.print(Panel(
                 body,
-                title=f"[bold]{lab_name}[/bold]",
+                title=f"[bold green]Lab:[/bold green] [bold bright_white]{lab_name}[/bold bright_white]",
                 border_style="green",
                 padding=(0, 2),
                 expand=False,
