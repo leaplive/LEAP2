@@ -2,7 +2,7 @@
 
 from importlib.metadata import version as _pkg_version
 
-__version__ = _pkg_version("leap")
+__version__ = _pkg_version("leaplive")
 
 from leap.core.rpc import adminonly, ctx, nolog, noregcheck, ratelimit, withctx
 
