@@ -75,7 +75,7 @@ Clients are available in **[Python, JavaScript, Julia, C, and C++](docs/CLIENTS.
 
 LEAP organizes work into **labs** and **experiments**:
 
-- **Experiment** — A self-contained unit: Python functions in `funcs/`, optional UI in `ui/`, its own DuckDB database, and a `README.md` with frontmatter. Can exist standalone or inside a lab.
+- **Experiment** — A self-contained unit: Python functions in `funcs/`, optional UI in `ui/`, its own DuckDB database, and a `README.md` with frontmatter. Can be hosted independently on GitHub for sharing, but always runs inside a lab.
 - **Lab** — A project root containing one or more experiments. Clone a lab, run `leap init`, and everything is ready.
 
 ```
@@ -93,6 +93,8 @@ my-lab/                      ← lab
 See [Lab Format](docs/LAB_FORMAT.md) and [Experiment Format](docs/EXPERIMENT_FORMAT.md) for frontmatter fields.
 
 ## Creating & Sharing Experiments
+
+You must be inside an initialized lab (`leap init`) to add experiments.
 
 ```bash
 leap add my-experiment                          # scaffold a new local experiment

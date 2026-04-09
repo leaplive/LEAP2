@@ -10,7 +10,7 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from leap.cli import app, discover_registry_fn, publish_experiment_fn, publish_fn, _is_url, LabDetectedError
+from leap.cli import app, discover_registry_fn, publish_experiment_fn, publish_fn, install_experiment_fn, _is_url, LabDetectedError
 
 runner = CliRunner()
 
@@ -587,3 +587,59 @@ class TestAddLab:
         ])
         assert result.exit_code == 1
         assert "already exists" in result.output
+
+
+class TestAddRequiresLab:
+    """Tests that leap add refuses to run outside an initialized lab."""
+
+    def test_add_scaffold_outside_lab_fails(self, tmp_path, monkeypatch):
+        """leap add <name> from a bare directory should fail."""
+        monkeypatch.chdir(tmp_path)
+        result = runner.invoke(app, ["add", "my-experiment"])
+        assert result.exit_code == 1
+        assert "not an initialized LEAP lab" in result.output
+        assert "leap init" in result.output
+
+    def test_add_local_path_outside_lab_fails(self, tmp_path, monkeypatch):
+        """leap add ./path from a bare directory should fail."""
+        src = tmp_path / "source-exp"
+        src.mkdir()
+        (src / "funcs").mkdir()
+        (src / "README.md").write_text("---\nname: src\ntype: experiment\n---\n")
+        monkeypatch.chdir(tmp_path)
+        result = runner.invoke(app, ["add", str(src)])
+        assert result.exit_code == 1
+        assert "not an initialized LEAP lab" in result.output
+
+    def test_add_experiment_url_outside_lab_fails(self, tmp_path):
+        """leap add <experiment-url> from a bare directory should fail after clone."""
+        def fake_clone(*args, **kwargs):
+            # Simulate git clone creating the destination directory
+            dest = tmp_path / "experiments" / "some-exp"
+            dest.mkdir(parents=True, exist_ok=True)
+            return MagicMock(returncode=0)
+
+        with patch("leap.cli.subprocess.run", side_effect=fake_clone):
+            with pytest.raises(typer.BadParameter, match="not an initialized LEAP lab"):
+                install_experiment_fn(
+                    "https://github.com/user/some-exp.git",
+                    root=tmp_path,
+                )
+        # Cleanup should have removed experiments/
+        assert not (tmp_path / "experiments").is_dir()
+
+    @patch("leap.cli.install_experiment_fn")
+    def test_add_lab_url_outside_lab_works(self, mock_install, tmp_path, monkeypatch):
+        """leap add <lab-url> from outside a lab should work via _handle_lab_add."""
+        plain_dir = tmp_path / "workspace"
+        plain_dir.mkdir()
+        monkeypatch.chdir(plain_dir)
+        mock_install.side_effect = LabDetectedError("starterlab", "https://github.com/leaplive/starterlab")
+
+        with patch("leap.cli.subprocess.run") as mock_clone:
+            mock_clone.return_value = MagicMock(returncode=0)
+            result = runner.invoke(app, [
+                "add", "https://github.com/leaplive/starterlab",
+            ])
+        assert result.exit_code == 0
+        assert "Cloned lab" in result.output

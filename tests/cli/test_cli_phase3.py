@@ -92,6 +92,7 @@ class TestInstallExperimentFn:
     def test_creates_experiments_dir_if_missing(self, tmp_path):
         """If experiments/ doesn't exist yet, install should create it."""
         import typer
+        (tmp_path / "README.md").write_text("---\nname: test\ntype: lab\n---\n")
         with patch("leap.cli.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             name, path, _ = install_experiment_fn(

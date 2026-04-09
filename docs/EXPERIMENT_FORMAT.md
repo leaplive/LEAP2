@@ -38,5 +38,8 @@ pages:
 | `require_registration` | `true` | Require student registration for RPC |
 | `pages` | `[]` | Extra navbar links: `[{name, file, admin}]`. Admin-only pages hidden for non-admins. |
 
+> [!NOTE]
+> Experiments always run inside a lab. To use a standalone experiment from GitHub, first create a lab with `leap init`, then install with `leap add <url>`.
+
 > [!WARNING]
 > **Experiment names must be lowercase.** Folder names must match `[a-z0-9][a-z0-9_-]*` — only lowercase letters, digits, hyphens, and underscores are allowed (e.g. `monte-carlo`, `gradient-descent-2d`). Folders with uppercase characters are **silently skipped** at discovery. Use `display_name` in frontmatter for human-readable names.

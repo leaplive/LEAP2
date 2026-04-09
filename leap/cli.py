@@ -1234,6 +1234,16 @@ def install_experiment_fn(
                     exp_base.rmdir()
                 raise LabDetectedError(name, url)
 
+        # Experiment URL cloned outside a lab — clean up and error
+        if not is_lab_root(resolved):
+            shutil.rmtree(dest)
+            if not exp_base_existed and exp_base.exists() and not any(exp_base.iterdir()):
+                exp_base.rmdir()
+            raise typer.BadParameter(
+                "This directory is not an initialized LEAP lab. "
+                "Run 'leap init' first, then retry."
+            )
+
     req_file = dest / "requirements.txt"
     if req_file.is_file():
         try:
@@ -1884,6 +1894,15 @@ def add_experiment(
     # Normalize bare host URLs (e.g. github.com/owner/repo → https://github.com/owner/repo)
     if _is_url(name_or_url) and "://" not in name_or_url and not name_or_url.endswith(".git"):
         name_or_url = "https://" + name_or_url
+
+    # Non-URL paths (scaffold or local copy) require an initialized lab
+    if not _is_url(name_or_url) and not is_lab_root(_resolve_root(root)):
+        typer.echo(
+            "Error: This directory is not an initialized LEAP lab.\n"
+            "Run 'leap init' first to set up the project.",
+            err=True,
+        )
+        raise typer.Exit(1)
 
     if _is_url(name_or_url):
         try:
