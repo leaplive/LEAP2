@@ -22,7 +22,8 @@ tags: [education, interactive, rpc, experiments]
 
 ```bash
 # Install (pick one)
-pip install git+https://github.com/leaplive/LEAP2.git    # from GitHub
+pip install leaplive                                       # from PyPI
+pip install git+https://github.com/leaplive/LEAP2.git      # from GitHub
 pip install -e .                                           # from local clone
 
 # Set up and run
