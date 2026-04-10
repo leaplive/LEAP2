@@ -1416,6 +1416,44 @@ def publish_fn(
             except Exception:
                 pass  # non-fatal — user can commit manually
 
+    # Check if already in the registry
+    try:
+        resp = requests.get(REGISTRY_URL, timeout=10)
+        resp.raise_for_status()
+        registry = yaml.safe_load(resp.text) or []
+        existing = [e for e in registry if e.get("name", "").lower() == name.lower()]
+        if existing:
+            raise typer.BadParameter(
+                f"'{name}' is already in the registry. "
+                "Use 'leap publish --update' or edit the registry entry directly."
+            )
+    except requests.RequestException:
+        pass  # registry unreachable — continue, the issue review will catch duplicates
+
+    # Check for an open issue already requesting this entry
+    if shutil.which("gh"):
+        try:
+            proc = subprocess.run(
+                ["gh", "issue", "list",
+                 "--repo", REGISTRY_REPO,
+                 "--search", f"Add {entry_type}: {name} in:title",
+                 "--state", "open",
+                 "--json", "url,title",
+                 "--limit", "5"],
+                capture_output=True, text=True, timeout=15,
+            )
+            if proc.returncode == 0:
+                import json as _json
+                issues = _json.loads(proc.stdout) if proc.stdout.strip() else []
+                # Exact title match
+                exact = [i for i in issues if i.get("title") == f"Add {entry_type}: {name}"]
+                if exact:
+                    raise typer.BadParameter(
+                        f"An open publish request already exists: {exact[0]['url']}"
+                    )
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass  # non-fatal — proceed with submission
+
     result = {
         "name": name,
         "repository": repository,

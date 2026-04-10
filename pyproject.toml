@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "leaplive"
-version = "2.0.0"
+version = "2.0.2"
 description = "Live Experiments for Active Pedagogy"
-readme = "README.md"
+readme = "README_PYPI.md"
 license = "MIT"
 authors = [
     {name = "Sampad Mohanty"},

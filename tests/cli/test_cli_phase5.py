@@ -126,6 +126,15 @@ class TestDiscoverCommand:
         assert "No entries found" in result.output
 
 
+def _empty_registry(*args, **kwargs):
+    """Mock requests.get to return an empty registry."""
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.text = "[]"
+    return resp
+
+
+@patch("leap.cli.requests.get", side_effect=_empty_registry)
 class TestPublishExperimentFn:
     def _make_experiment(self, tmp_root, description="Test experiment",
                          repository="", authors="tester", tags=None):
@@ -145,7 +154,7 @@ class TestPublishExperimentFn:
 
     @patch("leap.cli.subprocess.run")
     @patch("shutil.which", return_value="/usr/bin/gh")
-    def test_reads_frontmatter_and_submits(self, mock_which, mock_run, tmp_root):
+    def test_reads_frontmatter_and_submits(self, mock_which, mock_run, mock_get, tmp_root):
         self._make_experiment(tmp_root, repository="https://github.com/test/repo")
         def side_effect(cmd, **kwargs):
             if cmd[0] == "git" and "status" in cmd:
@@ -154,6 +163,8 @@ class TestPublishExperimentFn:
                 return MagicMock(returncode=0, stdout="", stderr="")
             if cmd[0] == "git" and "ls-remote" in cmd:
                 return MagicMock(returncode=0, stdout="", stderr="")
+            if cmd[0] == "gh" and "issue" in cmd and "list" in cmd:
+                return MagicMock(returncode=0, stdout="[]", stderr="")
             if cmd[0] == "gh":
                 return MagicMock(returncode=0, stdout="https://github.com/leaplive/registry/issues/1\n", stderr="")
             return MagicMock(returncode=0, stdout="", stderr="")
@@ -164,7 +175,8 @@ class TestPublishExperimentFn:
         assert "issues/1" in result["issue_url"]
 
         # Check gh was called with correct args
-        gh_calls = [c for c in mock_run.call_args_list if c[0][0][0] == "gh"]
+        gh_calls = [c for c in mock_run.call_args_list
+                     if c[0][0][0] == "gh" and "create" in c[0][0]]
         assert len(gh_calls) == 1
         args = gh_calls[0][0][0]
         assert "issue" in args
@@ -172,10 +184,8 @@ class TestPublishExperimentFn:
 
     @patch("leap.cli.subprocess.run")
     @patch("shutil.which", return_value="/usr/bin/gh")
-    def test_infers_repository_from_git_remote(self, mock_which, mock_run, tmp_root):
+    def test_infers_repository_from_git_remote(self, mock_which, mock_run, mock_get, tmp_root):
         self._make_experiment(tmp_root, repository="")
-        # First call is git remote for exp_path, second for resolved root
-        # Third call is git add, fourth is git commit, fifth is gh issue create
         def run_side_effect(cmd, **kwargs):
             if cmd[0] == "git" and "get-url" in cmd:
                 return MagicMock(returncode=0, stdout="https://github.com/inferred/repo\n", stderr="")
@@ -185,6 +195,8 @@ class TestPublishExperimentFn:
                 return MagicMock(returncode=0, stdout="", stderr="")
             if cmd[0] == "git" and "commit" in cmd:
                 return MagicMock(returncode=0, stdout="", stderr="")
+            if cmd[0] == "gh" and "issue" in cmd and "list" in cmd:
+                return MagicMock(returncode=0, stdout="[]", stderr="")
             if cmd[0] == "gh":
                 return MagicMock(returncode=0, stdout="https://github.com/leaplive/registry/issues/2\n", stderr="")
             return MagicMock(returncode=1, stdout="", stderr="")
@@ -195,7 +207,7 @@ class TestPublishExperimentFn:
         assert result["repository"] == "https://github.com/inferred/repo"
 
     @patch("leap.cli.subprocess.run")
-    def test_writes_back_repository(self, mock_run, tmp_root):
+    def test_writes_back_repository(self, mock_run, mock_get, tmp_root):
         self._make_experiment(tmp_root, repository="")
         def side_effect(cmd, **kwargs):
             if cmd[0] == "git" and "get-url" in cmd:
@@ -216,20 +228,20 @@ class TestPublishExperimentFn:
         content = readme.read_text()
         assert "https://github.com/remote/repo" in content
 
-    def test_missing_required_fields_raises(self, tmp_root):
+    def test_missing_required_fields_raises(self, mock_get, tmp_root):
         self._make_experiment(tmp_root, description="", repository="")
         with pytest.raises(typer.BadParameter, match="description"):
             publish_experiment_fn("default", root=tmp_root)
 
     @patch("leap.cli._get_git_remote", return_value="")
-    def test_no_repository_anywhere_raises(self, mock_remote, tmp_root):
+    def test_no_repository_anywhere_raises(self, mock_remote, mock_get, tmp_root):
         self._make_experiment(tmp_root, repository="")
         with pytest.raises(typer.BadParameter, match="repository"):
             publish_experiment_fn("default", root=tmp_root)
 
     @patch("leap.cli.subprocess.run")
     @patch("shutil.which", return_value=None)
-    def test_no_gh_returns_manual_url(self, mock_which, mock_run, tmp_root):
+    def test_no_gh_returns_manual_url(self, mock_which, mock_run, mock_get, tmp_root):
         self._make_experiment(tmp_root, repository="https://github.com/test/repo")
         def side_effect(cmd, **kwargs):
             if cmd[0] == "git" and "ls-remote" in cmd:
@@ -242,7 +254,7 @@ class TestPublishExperimentFn:
         assert "manual_url" in result
 
     @patch("leap.cli.subprocess.run")
-    def test_unreachable_repository_raises(self, mock_run, tmp_root):
+    def test_unreachable_repository_raises(self, mock_run, mock_get, tmp_root):
         self._make_experiment(tmp_root, repository="https://github.com/fake/nonexistent")
         def side_effect(cmd, **kwargs):
             if cmd[0] == "git" and "ls-remote" in cmd:
@@ -253,17 +265,19 @@ class TestPublishExperimentFn:
             publish_experiment_fn("default", root=tmp_root)
 
     @patch("leap.cli.subprocess.run")
-    def test_dry_run_skips_submission(self, mock_run, tmp_root):
+    def test_dry_run_skips_submission(self, mock_run, mock_get, tmp_root):
         self._make_experiment(tmp_root, repository="https://github.com/test/repo")
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
         result = publish_experiment_fn("default", root=tmp_root, dry_run=True)
         assert result["status"] == "dry_run"
-        # gh should never be called
-        gh_calls = [c for c in mock_run.call_args_list if c[0] and c[0][0] and c[0][0][0] == "gh"]
-        assert len(gh_calls) == 0
+        # gh issue create should never be called
+        gh_create_calls = [c for c in mock_run.call_args_list
+                           if c[0] and c[0][0] and c[0][0][0] == "gh" and "create" in c[0][0]]
+        assert len(gh_create_calls) == 0
 
 
+@patch("leap.cli.requests.get", side_effect=_empty_registry)
 class TestPublishCommand:
     def _make_experiment(self, tmp_root, repository="https://github.com/test/repo"):
         exp_path = tmp_root / "experiments" / "default"
@@ -280,7 +294,7 @@ class TestPublishCommand:
 
     @patch("leap.cli.subprocess.run")
     @patch("shutil.which", return_value="/usr/bin/gh")
-    def test_confirms_before_submitting(self, mock_which, mock_run, tmp_root):
+    def test_confirms_before_submitting(self, mock_which, mock_run, mock_get, tmp_root):
         self._make_experiment(tmp_root)
         def side_effect(cmd, **kwargs):
             if cmd[0] == "git" and "status" in cmd:
@@ -289,6 +303,8 @@ class TestPublishCommand:
                 return MagicMock(returncode=0, stdout="", stderr="")
             if cmd[0] == "git" and "ls-remote" in cmd:
                 return MagicMock(returncode=0, stdout="", stderr="")
+            if cmd[0] == "gh" and "issue" in cmd and "list" in cmd:
+                return MagicMock(returncode=0, stdout="[]", stderr="")
             if cmd[0] == "gh":
                 return MagicMock(returncode=0, stdout="https://github.com/leaplive/registry/issues/5\n", stderr="")
             return MagicMock(returncode=0, stdout="", stderr="")
@@ -301,7 +317,7 @@ class TestPublishCommand:
 
     @patch("leap.cli.subprocess.run")
     @patch("shutil.which", return_value="/usr/bin/gh")
-    def test_aborts_on_no(self, mock_which, mock_run, tmp_root):
+    def test_aborts_on_no(self, mock_which, mock_run, mock_get, tmp_root):
         self._make_experiment(tmp_root)
         result = runner.invoke(app, [
             "publish", "default", "--root", str(tmp_root),
@@ -309,7 +325,7 @@ class TestPublishCommand:
         assert result.exit_code != 0
 
     @patch("leap.cli.subprocess.run")
-    def test_dry_run_shows_preview(self, mock_run, tmp_root):
+    def test_dry_run_shows_preview(self, mock_run, mock_get, tmp_root):
         self._make_experiment(tmp_root)
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         result = runner.invoke(app, [
@@ -320,6 +336,7 @@ class TestPublishCommand:
         assert "default" in result.output
 
 
+@patch("leap.cli.requests.get", side_effect=_empty_registry)
 class TestPublishLabFn:
     """Tests for publishing a lab (no experiment argument)."""
 
@@ -340,7 +357,7 @@ class TestPublishLabFn:
 
     @patch("leap.cli.subprocess.run")
     @patch("shutil.which", return_value="/usr/bin/gh")
-    def test_publishes_lab_from_root_readme(self, mock_which, mock_run, tmp_root):
+    def test_publishes_lab_from_root_readme(self, mock_which, mock_run, mock_get, tmp_root):
         self._make_lab_readme(tmp_root, repository="https://github.com/test/mylab")
         def side_effect(cmd, **kwargs):
             if cmd[0] == "git" and "status" in cmd:
@@ -349,6 +366,8 @@ class TestPublishLabFn:
                 return MagicMock(returncode=0, stdout="", stderr="")
             if cmd[0] == "git" and "ls-remote" in cmd:
                 return MagicMock(returncode=0, stdout="", stderr="")
+            if cmd[0] == "gh" and "issue" in cmd and "list" in cmd:
+                return MagicMock(returncode=0, stdout="[]", stderr="")
             if cmd[0] == "gh":
                 return MagicMock(returncode=0, stdout="https://github.com/leaplive/registry/issues/10\n", stderr="")
             return MagicMock(returncode=0, stdout="", stderr="")
@@ -359,13 +378,14 @@ class TestPublishLabFn:
         assert "issues/10" in result["issue_url"]
 
         # Verify gh was called with "Add lab:" title
-        gh_calls = [c for c in mock_run.call_args_list if c[0][0][0] == "gh"]
+        gh_calls = [c for c in mock_run.call_args_list
+                     if c[0][0][0] == "gh" and "create" in c[0][0]]
         assert len(gh_calls) == 1
         args = gh_calls[0][0][0]
         assert "Add lab: mylab" in " ".join(args)
 
     @patch("leap.cli.subprocess.run")
-    def test_lab_dry_run(self, mock_run, tmp_root):
+    def test_lab_dry_run(self, mock_run, mock_get, tmp_root):
         self._make_lab_readme(tmp_root, repository="https://github.com/test/mylab")
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
@@ -373,13 +393,13 @@ class TestPublishLabFn:
         assert result["status"] == "dry_run"
         assert result["name"] == "mylab"
 
-    def test_lab_missing_description_raises(self, tmp_root):
+    def test_lab_missing_description_raises(self, mock_get, tmp_root):
         self._make_lab_readme(tmp_root, description="", repository="")
         with pytest.raises(typer.BadParameter, match="description"):
             publish_fn(experiment=None, root=tmp_root)
 
     @patch("leap.cli.subprocess.run")
-    def test_lab_infers_repository_from_git_remote(self, mock_run, tmp_root):
+    def test_lab_infers_repository_from_git_remote(self, mock_run, mock_get, tmp_root):
         self._make_lab_readme(tmp_root, repository="")
         def side_effect(cmd, **kwargs):
             if cmd[0] == "git" and "get-url" in cmd:
@@ -397,6 +417,7 @@ class TestPublishLabFn:
         assert result["repository"] == "https://github.com/inferred/lab"
 
 
+@patch("leap.cli.requests.get", side_effect=_empty_registry)
 class TestPublishLabCommand:
     """CLI integration tests for publishing a lab."""
 
@@ -415,7 +436,7 @@ class TestPublishLabCommand:
 
     @patch("leap.cli.subprocess.run")
     @patch("shutil.which", return_value="/usr/bin/gh")
-    def test_publish_lab_no_argument(self, mock_which, mock_run, tmp_root):
+    def test_publish_lab_no_argument(self, mock_which, mock_run, mock_get, tmp_root):
         self._make_lab_readme(tmp_root)
         def side_effect(cmd, **kwargs):
             if cmd[0] == "git" and "status" in cmd:
@@ -424,6 +445,8 @@ class TestPublishLabCommand:
                 return MagicMock(returncode=0, stdout="", stderr="")
             if cmd[0] == "git" and "ls-remote" in cmd:
                 return MagicMock(returncode=0, stdout="", stderr="")
+            if cmd[0] == "gh" and "issue" in cmd and "list" in cmd:
+                return MagicMock(returncode=0, stdout="[]", stderr="")
             if cmd[0] == "gh":
                 return MagicMock(returncode=0, stdout="https://github.com/leaplive/registry/issues/11\n", stderr="")
             return MagicMock(returncode=0, stdout="", stderr="")
@@ -436,7 +459,7 @@ class TestPublishLabCommand:
         assert "Submitted!" in result.output
 
     @patch("leap.cli.subprocess.run")
-    def test_publish_lab_dry_run(self, mock_run, tmp_root):
+    def test_publish_lab_dry_run(self, mock_run, mock_get, tmp_root):
         self._make_lab_readme(tmp_root)
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         result = runner.invoke(app, [
@@ -643,3 +666,82 @@ class TestAddRequiresLab:
             ])
         assert result.exit_code == 0
         assert "Cloned lab" in result.output
+
+
+class TestPublishDuplicateDetection:
+    """Tests that leap publish detects duplicates in registry and open issues."""
+
+    def _make_experiment(self, tmp_root):
+        exp_path = tmp_root / "experiments" / "default"
+        exp_path.mkdir(parents=True, exist_ok=True)
+        (exp_path / "README.md").write_text(
+            '---\nname: default\ndisplay_name: Test\n'
+            'description: "A test"\n'
+            'repository: "https://github.com/test/repo"\n'
+            'tags: []\n---\n\n# Test\n',
+            encoding="utf-8",
+        )
+
+    def test_rejects_if_already_in_registry(self, tmp_root):
+        """publish should fail if the experiment name is already in the registry."""
+        self._make_experiment(tmp_root)
+
+        def registry_with_default(*args, **kwargs):
+            resp = MagicMock()
+            resp.raise_for_status = MagicMock()
+            resp.text = '[{name: default, type: experiment, repository: "https://github.com/other/repo"}]'
+            return resp
+
+        with patch("leap.cli.requests.get", side_effect=registry_with_default):
+            with patch("leap.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+                with pytest.raises(typer.BadParameter, match="already in the registry"):
+                    publish_fn("default", root=tmp_root)
+
+    @patch("shutil.which", return_value="/usr/bin/gh")
+    def test_rejects_if_open_issue_exists(self, mock_which, tmp_root):
+        """publish should fail if there's already an open issue for this experiment."""
+        self._make_experiment(tmp_root)
+
+        def side_effect(cmd, **kwargs):
+            if cmd[0] == "git" and "ls-remote" in cmd:
+                return MagicMock(returncode=0, stdout="", stderr="")
+            if cmd[0] == "git" and "status" in cmd:
+                return MagicMock(returncode=0, stdout="", stderr="")
+            if cmd[0] == "git" and "log" in cmd:
+                return MagicMock(returncode=0, stdout="", stderr="")
+            if cmd[0] == "gh" and "issue" in cmd and "list" in cmd:
+                issues = json.dumps([{
+                    "title": "Add experiment: default",
+                    "url": "https://github.com/leaplive/registry/issues/99",
+                }])
+                return MagicMock(returncode=0, stdout=issues, stderr="")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("leap.cli.requests.get", side_effect=_empty_registry):
+            with patch("leap.cli.subprocess.run", side_effect=side_effect):
+                with pytest.raises(typer.BadParameter, match="already exists"):
+                    publish_fn("default", root=tmp_root)
+
+    @patch("shutil.which", return_value="/usr/bin/gh")
+    def test_allows_publish_when_no_duplicates(self, mock_which, tmp_root):
+        """publish should succeed when no registry or issue duplicates exist."""
+        self._make_experiment(tmp_root)
+
+        def side_effect(cmd, **kwargs):
+            if cmd[0] == "git" and "ls-remote" in cmd:
+                return MagicMock(returncode=0, stdout="", stderr="")
+            if cmd[0] == "git" and "status" in cmd:
+                return MagicMock(returncode=0, stdout="", stderr="")
+            if cmd[0] == "git" and "log" in cmd:
+                return MagicMock(returncode=0, stdout="", stderr="")
+            if cmd[0] == "gh" and "issue" in cmd and "list" in cmd:
+                return MagicMock(returncode=0, stdout="[]", stderr="")
+            if cmd[0] == "gh" and "issue" in cmd and "create" in cmd:
+                return MagicMock(returncode=0, stdout="https://github.com/leaplive/registry/issues/50\n", stderr="")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("leap.cli.requests.get", side_effect=_empty_registry):
+            with patch("leap.cli.subprocess.run", side_effect=side_effect):
+                result = publish_fn("default", root=tmp_root)
+                assert result["status"] == "submitted"
