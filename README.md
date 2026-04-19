@@ -24,14 +24,31 @@ tags: [education, interactive, rpc, experiments]
 pip install leaplive
 ```
 
-The fastest way to get something running is to grab an experiment from the community registry:
+The fastest way to get something running is to grab a lab from the community registry.
+
+Browse available labs and experiments:
 
 ```bash
-leap discover                              # browse available labs and experiments
-leap add https://github.com/leaplive/starterlab.git   # clone a lab (creates the folder for you)
+leap discover
+```
+
+Clone a lab — this creates the folder for you:
+
+```bash
+leap add https://github.com/leaplive/starterlab.git
 cd starterlab
-leap init                                  # install dependencies, set admin password
-leap run                                   # start server at http://localhost:9000
+```
+
+Install dependencies and set your admin password:
+
+```bash
+leap init
+```
+
+Start the server:
+
+```bash
+leap run
 ```
 
 Open http://localhost:9000 — the landing page lists the experiments in your lab.
@@ -40,11 +57,28 @@ Open http://localhost:9000 — the landing page lists the experiments in your la
 
 **1. Set up a lab and scaffold an experiment:**
 
+Create a folder for your lab and go into it:
+
 ```bash
 mkdir my-lab && cd my-lab
-leap init                    # set up lab structure and admin password
-leap add my-experiment       # creates experiments/my-experiment/ with starter files
-leap run                     # start server at http://localhost:9000
+```
+
+Initialize the lab — sets up the directory structure and admin password:
+
+```bash
+leap init
+```
+
+Scaffold a new experiment:
+
+```bash
+leap add my-experiment
+```
+
+Start the server:
+
+```bash
+leap run
 ```
 
 **2. Write your functions:**
