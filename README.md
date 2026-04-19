@@ -16,39 +16,53 @@ tags: [education, interactive, rpc, experiments]
 
 **Live Experiments for Active Pedagogy** — An interactive platform that turns Python functions into live, multi-student experiments. Drop functions in a folder, and students call them from Python, JavaScript, Julia, C, or C++ while every call is logged for analysis and visualization.
 
-## Quick Start
+## Getting Started
 
 **Prerequisites:** Python 3.10+
 
 ```bash
-# Install (pick one)
-pip install leaplive                                       # from PyPI
-pip install git+https://github.com/leaplive/LEAP2.git      # from GitHub
-pip install -e .                                           # from local clone
-
-# Set up and run
-leap init                    # create lab structure, set admin password
-leap run                     # start server at http://localhost:9000
+pip install leaplive
 ```
 
-Open http://localhost:9000 — the landing page lists available experiments.
+The fastest way to get something running is to grab an experiment from the community registry:
+
+```bash
+leap discover                              # browse available labs and experiments
+leap add https://github.com/leaplive/starterlab.git   # clone a lab (creates the folder for you)
+cd starterlab
+leap init                                  # install dependencies, set admin password
+leap run                                   # start server at http://localhost:9000
+```
+
+Open http://localhost:9000 — the landing page lists the experiments in your lab.
 
 ## How It Works
 
-**1. Write a function:**
+**1. Set up a lab and scaffold an experiment:**
+
+```bash
+mkdir my-lab && cd my-lab
+leap init                    # set up lab structure and admin password
+leap add my-experiment       # creates experiments/my-experiment/ with starter files
+leap run                     # start server at http://localhost:9000
+```
+
+**2. Write your functions:**
 
 ```python
-# experiments/my-lab/funcs/functions.py
+# experiments/my-experiment/funcs/functions.py
 def square(x: float) -> float:
     """Return x squared."""
     return x * x
 ```
 
-**2. Students call it remotely:**
+Functions are auto-discovered on startup (and hot-reloadable at runtime).
+
+**3. Students call them remotely:**
 
 ```python
 from leap.client import Client
-c = Client("http://localhost:9000", student_id="s001", experiment="my-lab")
+c = Client("http://localhost:9000", student_id="s001", experiment="my-experiment")
 c.square(7)  # 49
 ```
 
@@ -93,24 +107,15 @@ my-lab/                      ← lab
 
 See [Lab Format](docs/LAB_FORMAT.md) and [Experiment Format](docs/EXPERIMENT_FORMAT.md) for frontmatter fields.
 
-## Creating & Sharing Experiments
+## Sharing Experiments
 
-You must be inside an initialized lab (`leap init`) to add experiments.
-
-```bash
-leap add my-experiment                          # scaffold a new local experiment
-leap add https://github.com/user/cool-lab.git   # install from Git
-leap remove my-experiment                        # remove an experiment
-```
-
-`leap add <url>` clones the experiment, installs `requirements.txt`, tracks it in your lab's README, and adds it to `.gitignore`. Running it again on an already-installed experiment pulls updates.
-
-**Sharing your work:** Push to GitHub and share the URL. Others install with `leap add <url>`. For discovery, optionally publish to the [community registry](https://github.com/leaplive/registry):
+Push your experiment to GitHub and share the URL — others install it with `leap add <url>`. To list it in the community registry:
 
 ```bash
 leap publish my-experiment   # submit for review (requires gh CLI)
-leap discover                # browse the registry
 ```
+
+`leap add <url>` clones the experiment, installs `requirements.txt`, tracks it in the lab's README, and adds it to `.gitignore`. Running it again pulls updates.
 
 Distribution is git — LEAP never uploads anything.
 
@@ -195,6 +200,8 @@ Full reference with error handling, advanced usage, and Log/Admin clients: **[do
 ## Development
 
 ```bash
+git clone https://github.com/leaplive/LEAP2.git
+cd LEAP2
 pip install -e ".[dev]"
 pytest tests/                # run test suite
 uvicorn leap.main:app --reload --port 9000   # dev server with auto-reload
